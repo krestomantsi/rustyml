@@ -267,15 +267,3 @@ pub fn train_mlp(
     }
     loss(&mlp.forward(x), &y)
 }
-
-// split input into batches
-// forward each batch in parallel using rayon
-// return the output
-// pub fn parallel_forward(mlp: &MLP, x: &Array2<f32>, batch_size: usize) -> Vec<Array2<f32>> {
-//     let output = x
-//         .axis_chunks_iter(Axis(0), batch_size)
-//         .into_par_iter()
-//         .map(|x| x.shape().to_owned())
-//         .collect::<Vec<_>>();
-//     output
-// }
