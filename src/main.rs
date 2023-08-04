@@ -11,52 +11,67 @@ use ndarray_rand::RandomExt;
 mod utils;
 
 fn main() {
-    let latent_size = 32;
-    let activation = utils::leaky_relu;
-    let activation_prime = utils::leaky_relu_prime;
-    let n = 1000;
-    let epochs = 500;
-    let lr = 0.1f32;
+    let latent_size = 8;
+    let activation = utils::relu;
+    let activation_prime = utils::relu_prime;
+    let n = 10;
+    let epochs = 80000;
+    let lr = 0.01f32;
 
-    let mut mlp = utils::create_mlp(2, latent_size, 1, activation, activation_prime);
-    // sanity check
-    println!("{:?}", mlp.layers[0].weights);
-    // test forward
-    let x = Array2::<f32>::from_shape_vec((2, 2), vec![-1.0, 2.0, -3.0, 4.0]).unwrap();
-    println!("Testing forward pass");
-    println!("{:?}", mlp.forward(&x));
-    //bencmmark time for forward pass
-    // THIS IS WHAT YOU NEED TO BENCHMARK VS JULIA
-    // so far it is 30% faster than Julia
-    let x2 = Array2::<f32>::ones((n, 2));
-    let now = std::time::Instant::now();
-    for _ in 0..n {
-        let mut ywhy = mlp.forward(&x2);
-    }
-    println!("Time for forward pass {:?}", now.elapsed() / (n as u32));
     // // test backward
     // simple example for y=x^2
-    let x0 = Array::linspace(0.0, 1.0, n)
+    let x0 = Array::linspace(-1.0, 1.0, n)
         .insert_axis(Axis(1))
         .mapv(|xi| xi as f32);
-    let y0 = x0.mapv(|xi| xi.powi(3) + xi.powi(2));
-    mlp = utils::create_mlp(1, latent_size, 1, activation, activation_prime);
-    let output = mlp.forward(&x0.clone());
-    let lossu = utils::train_mlp(&mut mlp, &x0, &y0, lr, epochs, utils::mse, utils::mse_prime);
-    let y0_hat = mlp.forward(&x0);
-    let mut mse_loss = utils::mse(&y0, &y0_hat);
-    println!("MSE loss for y=x^2 is {}", mse_loss);
-    println!("{:?}", y0_hat);
-    let y0_hat2 = mlp.parallel_forward(&x0, 32);
-    println!("{:?}", y0_hat2);
+    let y0 = x0.mapv(|xi| (2.0f32 * 3.1415926535897f32 * xi).sin());
+    // let y0 = x0.mapv(|xi| xi * xi);
+    let mut mlp = utils::create_mlp_det(1, latent_size, 1, activation, activation_prime);
+    let gradients = mlp.backprop(&x0, &y0, utils::mse_prime);
+
+    let ii = 2;
+    println!("{:?}", mlp.layers[ii].weights);
+    println!("{:?}", mlp.layers[ii].bias);
+    println!("{:?}", gradients.layers[ii].weights);
+    println!("{:?}", gradients.layers[ii].bias);
 
     let now = std::time::Instant::now();
-    let n2 = 10000;
-    for _ in 0..n2 {
-        let mut ywhy = mlp.parallel_forward(&x0, 32);
-    }
-    println!(
-        "Time for parallel forward pass {:?}",
-        now.elapsed() / (n2 as u32)
-    );
+    let lossu = utils::train_mlp(&mut mlp, &x0, &y0, lr, epochs, utils::mse, utils::mse_prime);
+    println!("Time for training {:?}", now.elapsed());
+    // let y0_hat = mlp.forward(&x0);
+    // let mut mse_loss = utils::mse(&y0, &y0_hat);
+    // println!("MSE loss for y=x^2 is {}", mse_loss);
+    // println!("{:?}", y0_hat);
+    // let y0_hat2 = mlp.parallel_forward(&x0, 32);
+    // // println!("{:?}", y0_hat2);
+
+    // let now = std::time::Instant::now();
+    // let n2 = 10000;
+    // for _ in 0..n2 {
+    //     let mut ywhy = mlp.parallel_forward(&x0, 32);
+    // }
+    // println!(
+    //     "Time for parallel forward pass {:?}",
+    //     now.elapsed() / (n2 as u32)
+    // );
+    // // testing grads and their shapes
+    // let gradients = mlp.backprop(&x0, &y0, utils::mse_prime);
+    // println!(
+    //     "{:?}",
+    //     gradients.layers[0]
+    //         .bias
+    //         .mean_axis(Axis(0))
+    //         .unwrap()
+    //         .insert_axis(Axis(0))
+    // );
+    // for ll in mlp.layers {
+    //     println!("weights {:?}", ll.weights.clone().shape());
+    //     println!("bias {:?}", ll.bias.clone().shape());
+    // }
+    // println!(
+    //     "{:?}",
+    //     (y0_hat.clone() - y0.clone())
+    //         .mapv(|x| x.abs())
+    //         .mean()
+    //         .unwrap()
+    // )
 }

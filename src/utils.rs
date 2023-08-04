@@ -55,6 +55,9 @@ pub fn relu_prime(x: &Array2<f32>) -> Array2<f32> {
     x.mapv(|xi| relu_prime_scalar(xi))
 }
 
+// pub fn gelu_scalar(x:f32)-> f32 {
+// }
+
 pub fn leaky_relu_scalar(x: f32) -> f32 {
     if x > 0.0f32 {
         x
@@ -114,30 +117,30 @@ pub fn none_activation_prime(x: &Array2<f32>) -> Array2<f32> {
 
 // implement forward method
 impl Dense {
-    // pub fn forward(&self, input: &Array2<f32>) -> Array2<f32> {
-    //     (self.activation)(&(&input.dot(&self.weights) + &self.bias))
-    // }
     pub fn forward(&self, input: &Array2<f32>) -> Array2<f32> {
-        let x = input.dot(&self.weights);
-        // println!(
-        //     "x shape: {:?}, bias shape: {:?}",
-        //     x.shape(),
-        //     self.bias.shape()
-        // );
-        // THIS PART IF fucked up
-        // ndarray broadcasting rules mutated my bias and changed the shape
-        // this is obviously not intented behavior
-        // dfdx discord said we should make an issue about this
-        let x = &x
-            + &self
-                .bias
-                .clone()
-                .remove_axis(Axis(0))
-                .broadcast(x.raw_dim())
-                .unwrap();
-        let x = (self.activation)(&x);
-        x
+        (self.activation)(&(&input.dot(&self.weights) + &self.bias))
     }
+    // pub fn forward(&self, input: &Array2<f32>) -> Array2<f32> {
+    //     let x = input.dot(&self.weights);
+    //     // println!(
+    //     //     "x shape: {:?}, bias shape: {:?}",
+    //     //     x.shape(),
+    //     //     self.bias.shape()
+    //     // );
+    //     // THIS PART IF fucked up
+    //     // ndarray broadcasting rules mutated my bias and changed the shape
+    //     // this is obviously not intented behavior
+    //     // dfdx discord said we should make an issue about this
+    //     let x = &x
+    //         + &self
+    //             .bias
+    //             .clone()
+    //             .remove_axis(Axis(0))
+    //             .broadcast(x.raw_dim())
+    //             .unwrap();
+    //     let x = (self.activation)(&x);
+    //     x
+    // }
     pub fn backward(
         &self,
         input: &Array2<f32>,
@@ -147,7 +150,7 @@ impl Dense {
             weights: Array2::zeros(self.weights.dim()),
             bias: Array2::zeros(self.bias.dim()),
         };
-        gradient.bias = pullback.clone();
+        gradient.bias = pullback.clone().sum_axis(Axis(0)).insert_axis(Axis(0));
         gradient.weights = input.t().dot(pullback);
 
         let pullback = pullback.dot(&self.weights.t()) * (self.activation_prime)(&input);
@@ -163,11 +166,11 @@ pub fn create_mlp(
 ) -> MLP {
     let mut layers = Vec::new();
     let uniform = Uniform::new(-1.0, 1.0);
-    let weights1 =
-        Array2::random((input_size, latent_size), uniform).mapv(|xi| xi / latent_size as f32);
+    let weights1 = Array2::random((input_size, latent_size), uniform)
+        .mapv(|xi| xi / (latent_size as f32).sqrt());
     let bias1 = Array2::zeros((1, latent_size));
-    let weights2 =
-        Array2::random((latent_size, latent_size), uniform).mapv(|xi| xi / latent_size as f32);
+    let weights2 = Array2::random((latent_size, latent_size), uniform)
+        .mapv(|xi| xi / (latent_size as f32).sqrt());
     let bias2 = Array2::zeros((1, latent_size));
     let weights3 = Array2::random((latent_size, output_size), uniform).mapv(|xi| xi as f32);
     let bias3 = Array2::zeros((1, output_size));
@@ -290,4 +293,40 @@ pub fn train_mlp(
         }
     }
     loss(&mlp.forward(x), &y)
+}
+
+pub fn create_mlp_det(
+    input_size: usize,
+    latent_size: usize,
+    output_size: usize,
+    activation: fn(&Array2<f32>) -> Array2<f32>,
+    activation_prime: fn(&Array2<f32>) -> Array2<f32>,
+) -> MLP {
+    let mut layers = Vec::new();
+    let weights1 = Array2::<f32>::ones((input_size, latent_size));
+    let bias1 = Array2::zeros((1, latent_size));
+    let weights2 = Array2::<f32>::ones((latent_size, latent_size));
+    let bias2 = Array2::zeros((1, latent_size));
+    let weights3 = Array2::<f32>::ones((latent_size, output_size));
+    let bias3 = Array2::zeros((1, output_size));
+
+    layers.push(Dense {
+        weights: weights1,
+        bias: bias1,
+        activation: activation,
+        activation_prime: activation_prime,
+    });
+    layers.push(Dense {
+        weights: weights2,
+        bias: bias2,
+        activation: activation,
+        activation_prime: activation_prime,
+    });
+    layers.push(Dense {
+        weights: weights3,
+        bias: bias3,
+        activation: none_activation,
+        activation_prime: none_activation_prime,
+    });
+    MLP { layers: layers }
 }
