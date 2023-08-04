@@ -12,8 +12,8 @@ mod utils;
 
 fn main() {
     let latent_size = 32;
-    let activation = utils::swish;
-    let activation_prime = utils::swish_prime;
+    let activation = utils::leaky_relu;
+    let activation_prime = utils::leaky_relu_prime;
     let n = 1000;
     let epochs = 500;
     let lr = 0.1f32;
@@ -55,5 +55,8 @@ fn main() {
     for _ in 0..n2 {
         let mut ywhy = mlp.parallel_forward(&x0, 32);
     }
-    println!("Time for forward pass {:?}", now.elapsed() / (n2 as u32));
+    println!(
+        "Time for parallel forward pass {:?}",
+        now.elapsed() / (n2 as u32)
+    );
 }

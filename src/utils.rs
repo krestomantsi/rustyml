@@ -38,6 +38,7 @@ pub fn relu_scalar(x: f32) -> f32 {
         0.0f32
     }
 }
+
 pub fn relu_prime_scalar(x: f32) -> f32 {
     if x > 0.0 {
         1.0f32
@@ -52,6 +53,29 @@ pub fn relu(x: &Array2<f32>) -> Array2<f32> {
 
 pub fn relu_prime(x: &Array2<f32>) -> Array2<f32> {
     x.mapv(|xi| relu_prime_scalar(xi))
+}
+
+pub fn leaky_relu_scalar(x: f32) -> f32 {
+    if x > 0.0f32 {
+        x
+    } else {
+        0.01f32 * x
+    }
+}
+pub fn leaky_relu_prime_scalar(x: f32) -> f32 {
+    if x > 0.0f32 {
+        1.0f32
+    } else {
+        0.01f32
+    }
+}
+
+pub fn leaky_relu(x: &Array2<f32>) -> Array2<f32> {
+    x.mapv(|xi| leaky_relu_scalar(xi))
+}
+
+pub fn leaky_relu_prime(x: &Array2<f32>) -> Array2<f32> {
+    x.mapv(|xi| leaky_relu_prime_scalar(xi))
 }
 
 pub fn swish_scalar(x: f32) -> f32 {
