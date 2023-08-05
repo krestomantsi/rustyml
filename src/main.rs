@@ -12,11 +12,11 @@ mod utils;
 
 fn main() {
     let latent_size = 32;
-    let activation = utils::gelu;
-    let activation_prime = utils::gelu_prime;
+    let activation = utils::relu;
+    let activation_prime = utils::relu_prime;
     let n = 100;
     let epochs = 100000;
-    let lr = 0.01f32;
+    let lr = 0.05f32;
 
     // // test backward
     // simple example for y=x^2
