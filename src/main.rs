@@ -12,10 +12,10 @@ mod utils;
 
 fn main() {
     let latent_size = 32;
-    let activation = utils::swish;
-    let activation_prime = utils::swish_prime;
+    let activation = utils::gelu;
+    let activation_prime = utils::gelu_prime;
     let n = 100;
-    let epochs = 200000;
+    let epochs = 100000;
     let lr = 0.01f32;
 
     // // test backward
@@ -35,7 +35,7 @@ fn main() {
     println!("{:?}", gradients.layers[ii].bias);
 
     let now = std::time::Instant::now();
-    let lossu = utils::train_mlp(&mut mlp, &x0, &y0, lr, epochs, utils::mse, utils::mse_prime);
+    let mlp = utils::train_mlp(&mut mlp, &x0, &y0, lr, epochs, utils::mse, utils::mse_prime);
     println!("Time for training {:?}", now.elapsed());
     let y0_hat = mlp.forward(&x0);
     let mut mse_loss = utils::mse(&y0, &y0_hat);

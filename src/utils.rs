@@ -161,14 +161,11 @@ impl Dense {
         input: &Array2<f32>,
         pullback: &Array2<f32>,
     ) -> (Array2<f32>, DenseGradient) {
-        let mut gradient = DenseGradient {
-            weights: Array2::zeros(self.weights.dim()),
-            bias: Array2::zeros(self.bias.dim()),
-        };
-        gradient.bias = pullback.clone().sum_axis(Axis(0)).insert_axis(Axis(0));
-        gradient.weights = input.t().dot(pullback);
+        let bias = pullback.clone().sum_axis(Axis(0)).insert_axis(Axis(0));
+        let weights = input.t().dot(pullback);
 
         let pullback = pullback.dot(&self.weights.t()) * (self.activation_prime)(&input);
+        let gradient = DenseGradient { weights, bias };
         (pullback, gradient)
     }
 }
@@ -284,30 +281,39 @@ impl MLP {
 }
 
 // this wont stay here for long I need a better abstraction
-pub fn sgd(mlp: &mut MLP, gradients: &MLPGradient, lr: f32) {
+pub fn sgd(mlp: &MLP, gradients: &MLPGradient, lr: f32) -> MLP {
+    let mut layers = Vec::new();
     for i in 0..mlp.layers.len() {
-        mlp.layers[i].weights = &mlp.layers[i].weights - &gradients.layers[i].weights * lr;
-        mlp.layers[i].bias = &mlp.layers[i].bias - &gradients.layers[i].bias * lr;
+        let weights = &mlp.layers[i].weights - &gradients.layers[i].weights * lr;
+        let bias = &mlp.layers[i].bias - &gradients.layers[i].bias * lr;
+        layers.push(Dense {
+            weights: weights,
+            bias: bias,
+            activation: mlp.layers[i].activation,
+            activation_prime: mlp.layers[i].activation_prime,
+        });
     }
+    MLP { layers: layers }
 }
 
 pub fn train_mlp(
-    mlp: &mut MLP,
+    mlp: &MLP,
     x: &Array2<f32>,
     y: &Array2<f32>,
     lr: f32,
     epochs: usize,
     loss: fn(&Array2<f32>, &Array2<f32>) -> f32,
     loss_prime: fn(&Array2<f32>, &Array2<f32>) -> Array2<f32>,
-) -> f32 {
+) -> MLP {
+    let mut mlp = mlp.clone();
     for i in 0..epochs {
         let gradients = mlp.backprop(x, y, loss_prime);
-        sgd(mlp, &gradients, lr);
+        mlp = sgd(&mlp, &gradients, lr);
         if i % 1500 == 0 {
             println!("Epoch {} ||loss: {}", i, loss(&mlp.forward(x), &y));
         }
     }
-    loss(&mlp.forward(x), &y)
+    mlp
 }
 
 pub fn create_mlp_det(
