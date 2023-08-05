@@ -2,7 +2,6 @@ use ndarray::parallel::prelude::*;
 use ndarray::prelude::*;
 use ndarray_rand::rand_distr::Uniform;
 use ndarray_rand::RandomExt;
-use std::sync::{Arc, RwLock}; // for multithreading delete if it doesnt work
 
 // i want to implement a layer abstraction with a forward and backward pass
 
@@ -48,29 +47,29 @@ pub fn relu_prime_scalar(x: f32) -> f32 {
 }
 
 pub fn relu(x: &Array2<f32>) -> Array2<f32> {
-    x.mapv(|xi| relu_scalar(xi))
+    x.mapv(relu_scalar)
 }
 
 pub fn relu_prime(x: &Array2<f32>) -> Array2<f32> {
-    x.mapv(|xi| relu_prime_scalar(xi))
+    x.mapv(relu_prime_scalar)
 }
 
 pub fn gelu_scalar(x: f32) -> f32 {
-    0.5f32 * x * (1.0f32 + (2.0f32 / 3.1415926535897f32).sqrt() * (0.044715f32 * x * x * x))
+    0.5f32 * x * (1.0f32 + (2.0f32 / 3.141_592_7_f32).sqrt() * (0.044715f32 * x * x * x))
 }
 
 pub fn gelu(x: &Array2<f32>) -> Array2<f32> {
-    x.mapv(|xi| gelu_scalar(xi))
+    x.mapv(gelu_scalar)
 }
 pub fn gelu_prime_scalar(x: f32) -> f32 {
     0.5f32
         * (1.0f32
-            + (2.0f32 / 3.1415926535897f32).sqrt() * (0.044715f32 * x * x * x)
-            + (2.0f32 / 3.1415926535897f32).sqrt() * (0.134145f32 * x * x * x * x * x))
+            + (2.0f32 / 3.141_592_7_f32).sqrt() * (0.044715f32 * x * x * x)
+            + (2.0f32 / 3.141_592_7_f32).sqrt() * (0.134145f32 * x * x * x * x * x))
 }
 
 pub fn gelu_prime(x: &Array2<f32>) -> Array2<f32> {
-    x.mapv(|xi| gelu_prime_scalar(xi))
+    x.mapv(gelu_prime_scalar)
 }
 
 pub fn leaky_relu_scalar(x: f32) -> f32 {
@@ -89,11 +88,11 @@ pub fn leaky_relu_prime_scalar(x: f32) -> f32 {
 }
 
 pub fn leaky_relu(x: &Array2<f32>) -> Array2<f32> {
-    x.mapv(|xi| leaky_relu_scalar(xi))
+    x.mapv(leaky_relu_scalar)
 }
 
 pub fn leaky_relu_prime(x: &Array2<f32>) -> Array2<f32> {
-    x.mapv(|xi| leaky_relu_prime_scalar(xi))
+    x.mapv(leaky_relu_prime_scalar)
 }
 
 pub fn swish_scalar(x: f32) -> f32 {
@@ -106,11 +105,11 @@ pub fn swish_prime_scalar(x: f32) -> f32 {
 }
 
 pub fn swish(x: &Array2<f32>) -> Array2<f32> {
-    x.mapv(|xi| swish_scalar(xi))
+    x.mapv(swish_scalar)
 }
 
 pub fn swish_prime(x: &Array2<f32>) -> Array2<f32> {
-    x.mapv(|xi| swish_prime_scalar(xi))
+    x.mapv(swish_prime_scalar)
 }
 
 pub fn none_activation(x: &Array2<f32>) -> Array2<f32> {
@@ -122,7 +121,7 @@ pub fn mse(x: &Array2<f32>, target: &Array2<f32>) -> f32 {
 }
 
 pub fn mse_prime(x: &Array2<f32>, target: &Array2<f32>) -> Array2<f32> {
-    let n = (&x).shape()[0] as f32;
+    let n = x.shape()[0] as f32;
     2.0 * (x - target) / (n)
 }
 // derivative of None activation is 1
@@ -164,7 +163,7 @@ impl Dense {
         let bias = pullback.clone().sum_axis(Axis(0)).insert_axis(Axis(0));
         let weights = input.t().dot(pullback);
 
-        let pullback = pullback.dot(&self.weights.t()) * (self.activation_prime)(&input);
+        let pullback = pullback.dot(&self.weights.t()) * (self.activation_prime)(input);
         let gradient = DenseGradient { weights, bias };
         (pullback, gradient)
     }
@@ -184,20 +183,20 @@ pub fn create_mlp(
     let weights2 = Array2::random((latent_size, latent_size), uniform)
         .mapv(|xi| xi / (latent_size as f32).sqrt());
     let bias2 = Array2::zeros((1, latent_size));
-    let weights3 = Array2::random((latent_size, output_size), uniform).mapv(|xi| xi as f32);
+    let weights3 = Array2::random((latent_size, output_size), uniform).mapv(|xi| xi);
     let bias3 = Array2::zeros((1, output_size));
 
     layers.push(Dense {
         weights: weights1,
         bias: bias1,
-        activation: activation,
-        activation_prime: activation_prime,
+        activation,
+        activation_prime,
     });
     layers.push(Dense {
         weights: weights2,
         bias: bias2,
-        activation: activation,
-        activation_prime: activation_prime,
+        activation,
+        activation_prime,
     });
     layers.push(Dense {
         weights: weights3,
@@ -205,7 +204,7 @@ pub fn create_mlp(
         activation: none_activation,
         activation_prime: none_activation_prime,
     });
-    MLP { layers: layers }
+    MLP { layers }
 }
 
 impl MLP {
@@ -287,13 +286,13 @@ pub fn sgd(mlp: &MLP, gradients: &MLPGradient, lr: f32) -> MLP {
         let weights = &mlp.layers[i].weights - &gradients.layers[i].weights * lr;
         let bias = &mlp.layers[i].bias - &gradients.layers[i].bias * lr;
         layers.push(Dense {
-            weights: weights,
-            bias: bias,
+            weights,
+            bias,
             activation: mlp.layers[i].activation,
             activation_prime: mlp.layers[i].activation_prime,
         });
     }
-    MLP { layers: layers }
+    MLP { layers }
 }
 
 pub fn train_mlp(
@@ -310,7 +309,7 @@ pub fn train_mlp(
         let gradients = mlp.backprop(x, y, loss_prime);
         mlp = sgd(&mlp, &gradients, lr);
         if i % 1500 == 0 {
-            println!("Epoch {} ||loss: {}", i, loss(&mlp.forward(x), &y));
+            println!("Epoch {} ||loss: {}", i, loss(&mlp.forward(x), y));
         }
     }
     mlp
@@ -334,14 +333,14 @@ pub fn create_mlp_det(
     layers.push(Dense {
         weights: weights1,
         bias: bias1,
-        activation: activation,
-        activation_prime: activation_prime,
+        activation,
+        activation_prime,
     });
     layers.push(Dense {
         weights: weights2,
         bias: bias2,
-        activation: activation,
-        activation_prime: activation_prime,
+        activation,
+        activation_prime,
     });
     layers.push(Dense {
         weights: weights3,
@@ -349,5 +348,5 @@ pub fn create_mlp_det(
         activation: none_activation,
         activation_prime: none_activation_prime,
     });
-    MLP { layers: layers }
+    MLP { layers }
 }

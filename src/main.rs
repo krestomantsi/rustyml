@@ -1,20 +1,15 @@
-use std::process::Output;
-
 // lets create a MLP (Multi Layer Perceptron) to do simple regression
-use ndarray::parallel::prelude::*;
+use gnuplot::{Caption, Color, Figure};
 use ndarray::prelude::*;
-use ndarray::stack;
-use ndarray_rand::rand_distr::Uniform;
-use ndarray_rand::RandomExt;
 
 // include utils.rs file
 mod utils;
 
 fn main() {
-    let latent_size = 32;
+    let latent_size = 16;
     let activation = utils::relu;
     let activation_prime = utils::relu_prime;
-    let n = 100;
+    let n = 20;
     let epochs = 100000;
     let lr = 0.05f32;
 
@@ -23,7 +18,7 @@ fn main() {
     let x0 = Array::linspace(-1.0, 1.0, n)
         .insert_axis(Axis(1))
         .mapv(|xi| xi as f32);
-    let y0 = x0.mapv(|xi| (2.0f32 * 3.1415926535897f32 * xi).sin());
+    let y0 = x0.mapv(|xi| (2.0f32 * 3.141_592_7_f32 * xi).sin());
     // let y0 = x0.mapv(|xi| xi * xi);
     let mut mlp = utils::create_mlp(1, latent_size, 1, activation, activation_prime);
     let gradients = mlp.backprop(&x0, &y0, utils::mse_prime);
@@ -38,7 +33,7 @@ fn main() {
     let mlp = utils::train_mlp(&mut mlp, &x0, &y0, lr, epochs, utils::mse, utils::mse_prime);
     println!("Time for training {:?}", now.elapsed());
     let y0_hat = mlp.forward(&x0);
-    let mut mse_loss = utils::mse(&y0, &y0_hat);
+    let mse_loss = utils::mse(&y0, &y0_hat);
     println!("MSE loss for y=x^2 is {}", mse_loss);
     // println!("{:?}", y0_hat);
     // let y0_hat2 = mlp.parallel_forward(&x0, 32);
@@ -74,4 +69,24 @@ fn main() {
     //         .mean()
     //         .unwrap()
     // )
+    // Generate some sample data (sine wave)
+    let x: Vec<f64> = (0..100).map(|i| i as f64 * 0.1).collect();
+    let y: Vec<f64> = x.iter().map(|&xi| f64::sin(xi)).collect();
+
+    // Create a new figure
+    let mut fg = Figure::new();
+    let x02
+    // Plot the data as a blue line with circle markers
+    fg.axes2d()
+        .points(&x0, &y0, &[Caption("Sine Wave"), Color("blue")])
+        .lines_points(&x, &y, &[Caption("Sine Wave"), Color("red")]);
+
+    // Set the output file path
+    let output_file = "plot.png";
+
+    // Save the figure to a file
+    fg.save_to_png(output_file, 800, 600)
+        .expect("Unable to save plot");
+
+    println!("Plot saved to {}", output_file);
 }
