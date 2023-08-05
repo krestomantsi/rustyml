@@ -11,11 +11,11 @@ use ndarray_rand::RandomExt;
 mod utils;
 
 fn main() {
-    let latent_size = 8;
-    let activation = utils::relu;
-    let activation_prime = utils::relu_prime;
-    let n = 10;
-    let epochs = 80000;
+    let latent_size = 32;
+    let activation = utils::swish;
+    let activation_prime = utils::swish_prime;
+    let n = 100;
+    let epochs = 200000;
     let lr = 0.01f32;
 
     // // test backward
@@ -25,7 +25,7 @@ fn main() {
         .mapv(|xi| xi as f32);
     let y0 = x0.mapv(|xi| (2.0f32 * 3.1415926535897f32 * xi).sin());
     // let y0 = x0.mapv(|xi| xi * xi);
-    let mut mlp = utils::create_mlp_det(1, latent_size, 1, activation, activation_prime);
+    let mut mlp = utils::create_mlp(1, latent_size, 1, activation, activation_prime);
     let gradients = mlp.backprop(&x0, &y0, utils::mse_prime);
 
     let ii = 2;
@@ -37,9 +37,9 @@ fn main() {
     let now = std::time::Instant::now();
     let lossu = utils::train_mlp(&mut mlp, &x0, &y0, lr, epochs, utils::mse, utils::mse_prime);
     println!("Time for training {:?}", now.elapsed());
-    // let y0_hat = mlp.forward(&x0);
-    // let mut mse_loss = utils::mse(&y0, &y0_hat);
-    // println!("MSE loss for y=x^2 is {}", mse_loss);
+    let y0_hat = mlp.forward(&x0);
+    let mut mse_loss = utils::mse(&y0, &y0_hat);
+    println!("MSE loss for y=x^2 is {}", mse_loss);
     // println!("{:?}", y0_hat);
     // let y0_hat2 = mlp.parallel_forward(&x0, 32);
     // // println!("{:?}", y0_hat2);
@@ -53,20 +53,20 @@ fn main() {
     //     "Time for parallel forward pass {:?}",
     //     now.elapsed() / (n2 as u32)
     // );
-    // // testing grads and their shapes
-    // let gradients = mlp.backprop(&x0, &y0, utils::mse_prime);
-    // println!(
-    //     "{:?}",
-    //     gradients.layers[0]
-    //         .bias
-    //         .mean_axis(Axis(0))
-    //         .unwrap()
-    //         .insert_axis(Axis(0))
-    // );
-    // for ll in mlp.layers {
-    //     println!("weights {:?}", ll.weights.clone().shape());
-    //     println!("bias {:?}", ll.bias.clone().shape());
-    // }
+    // testing grads and their shapes
+    let gradients = mlp.backprop(&x0, &y0, utils::mse_prime);
+    println!(
+        "{:?}",
+        gradients.layers[0]
+            .bias
+            .mean_axis(Axis(0))
+            .unwrap()
+            .insert_axis(Axis(0))
+    );
+    for ll in mlp.layers {
+        println!("weights {:?}", ll.weights.clone().shape());
+        println!("bias {:?}", ll.bias.clone().shape());
+    }
     // println!(
     //     "{:?}",
     //     (y0_hat.clone() - y0.clone())

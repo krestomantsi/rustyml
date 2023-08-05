@@ -55,8 +55,23 @@ pub fn relu_prime(x: &Array2<f32>) -> Array2<f32> {
     x.mapv(|xi| relu_prime_scalar(xi))
 }
 
-// pub fn gelu_scalar(x:f32)-> f32 {
-// }
+pub fn gelu_scalar(x: f32) -> f32 {
+    0.5f32 * x * (1.0f32 + (2.0f32 / 3.1415926535897f32).sqrt() * (0.044715f32 * x * x * x))
+}
+
+pub fn gelu(x: &Array2<f32>) -> Array2<f32> {
+    x.mapv(|xi| gelu_scalar(xi))
+}
+pub fn gelu_prime_scalar(x: f32) -> f32 {
+    0.5f32
+        * (1.0f32
+            + (2.0f32 / 3.1415926535897f32).sqrt() * (0.044715f32 * x * x * x)
+            + (2.0f32 / 3.1415926535897f32).sqrt() * (0.134145f32 * x * x * x * x * x))
+}
+
+pub fn gelu_prime(x: &Array2<f32>) -> Array2<f32> {
+    x.mapv(|xi| gelu_prime_scalar(xi))
+}
 
 pub fn leaky_relu_scalar(x: f32) -> f32 {
     if x > 0.0f32 {
