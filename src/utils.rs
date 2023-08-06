@@ -286,27 +286,27 @@ impl MLP {
         .unwrap();
         output
     }
-    // pub fn visualize(
-    //     &self,
-    //     x: &Array2<f32>,
-    //     y: &Array2<f32>,
-    //     loss_prime: fn(&Array2<f32>, &Array2<f32>) -> Array2<f32>,
-    // ) {
-    //     let (outputs, gradients) = self.backprop(x, y, loss_prime);
-    //     for i in 0..self.layers.len() {
-    //         println!("Layer {}", i);
-    //         println!("Weights");
-    //         println!("{:?}", self.layers[i].weights);
-    //         println!("Bias");
-    //         println!("{:?}", self.layers[i].bias);
-    //         println!("Gradient");
-    //         println!("{:?}", gradients.layers[i].weights);
-    //         println!("Output");
-    //         println!("{:?}", outputs[i]);
-    //         // gnuplot histogram of biases and weights
-    //         let mut fg = gnuplot::Histogram::new();
-    //     }
-    // }
+    pub fn visualize(
+        &self,
+        x: &Array2<f32>,
+        y: &Array2<f32>,
+        loss_prime: fn(&Array2<f32>, &Array2<f32>) -> Array2<f32>,
+    ) {
+        let (outputs, gradients) = self.backprop(x, y, loss_prime);
+        for i in 0..self.layers.len() {
+            println!("Layer {}", i);
+            println!("Weights");
+            println!("{:?}", self.layers[i].weights);
+            println!("Bias");
+            println!("{:?}", self.layers[i].bias);
+            println!("Gradient");
+            println!("{:?}", gradients.layers[i].weights);
+            println!("Output");
+            println!("{:?}", outputs[i]);
+            // gnuplot histogram of biases and weights
+            let mut fg = histogram(self.layers[i].bias.clone().into_raw_vec());
+        }
+    }
 }
 
 // this wont stay here for long I need a better abstraction
