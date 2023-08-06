@@ -392,10 +392,22 @@ pub fn count_in(a: f32, b: f32, xdata: Array1<f32>) -> usize {
 }
 
 pub fn histogram(x: &Vec<f32>) -> Figure {
-    let n = x.len();
+    let n = x.len() as u32;
     let xdata = Array1::from_vec(x.clone());
     let xmin = xdata.fold(f32::INFINITY, |a, &b| a.min(b));
     let xmax = xdata.fold(f32::NEG_INFINITY, |a, &b| a.max(b));
-    let nbins = (n as f32).sqrt() as usize;
-    let xt = Array1::linspace(xmin, xmax, nbins);
+    let nbins = ((n + (1 as u32)) as f32).sqrt() as usize;
+    println!("nbins: {}", nbins);
+    let xt = Array1::linspace(xmin, xmax, nbins).to_vec();
+
+    // get counts in each interval of xt
+    let mut counts = Vec::new();
+    for i in 0..nbins - 1 {
+        counts.push(count_in(xt[i], xt[i + 1], xdata.clone()));
+    }
+    let mut fg = Figure::new();
+    fg.axes2d().boxes(xt.to_vec(), &counts, &[]);
+    // print counts
+    println!("counts: {:?}", counts);
+    fg
 }
