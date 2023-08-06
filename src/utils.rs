@@ -1,3 +1,4 @@
+use gnuplot::{Caption, Color, Figure};
 use ndarray::parallel::prelude::*;
 use ndarray::prelude::*;
 use ndarray_rand::rand_distr::Uniform;
@@ -285,14 +286,27 @@ impl MLP {
         .unwrap();
         output
     }
-    pub fn visualize(
-        &self,
-        x: &Array2<f32>,
-        y: &Array2<f32>,
-        loss_prime: fn(&Array2<f32>, &Array2<f32>),
-    ) {
-        let (outputs, gradients) = self.backprop(x, y, loss_prime);
-    }
+    // pub fn visualize(
+    //     &self,
+    //     x: &Array2<f32>,
+    //     y: &Array2<f32>,
+    //     loss_prime: fn(&Array2<f32>, &Array2<f32>) -> Array2<f32>,
+    // ) {
+    //     let (outputs, gradients) = self.backprop(x, y, loss_prime);
+    //     for i in 0..self.layers.len() {
+    //         println!("Layer {}", i);
+    //         println!("Weights");
+    //         println!("{:?}", self.layers[i].weights);
+    //         println!("Bias");
+    //         println!("{:?}", self.layers[i].bias);
+    //         println!("Gradient");
+    //         println!("{:?}", gradients.layers[i].weights);
+    //         println!("Output");
+    //         println!("{:?}", outputs[i]);
+    //         // gnuplot histogram of biases and weights
+    //         let mut fg = gnuplot::Histogram::new();
+    //     }
+    // }
 }
 
 // this wont stay here for long I need a better abstraction
@@ -365,4 +379,23 @@ pub fn create_mlp_det(
         activation_prime: none_activation_prime,
     });
     MLP { layers }
+}
+
+pub fn count_in(a: f32, b: f32, xdata: Array1<f32>) -> usize {
+    let mut count = 0;
+    for i in 0..xdata.len() {
+        if xdata[i] >= a && xdata[i] < b {
+            count += 1;
+        }
+    }
+    count
+}
+
+pub fn histogram(x: &Vec<f32>) -> Figure {
+    let n = x.len();
+    let xdata = Array1::from_vec(x.clone());
+    let xmin = xdata.fold(f32::INFINITY, |a, &b| a.min(b));
+    let xmax = xdata.fold(f32::NEG_INFINITY, |a, &b| a.max(b));
+    let nbins = (n as f32).sqrt() as usize;
+    let xt = Array1::linspace(xmin, xmax, nbins);
 }
