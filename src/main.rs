@@ -6,9 +6,9 @@ use ndarray::prelude::*;
 mod utils;
 
 fn main() {
-    let latent_size = 16;
-    let activation = utils::relu;
-    let activation_prime = utils::relu_prime;
+    let latent_size = 32;
+    let activation = utils::swish;
+    let activation_prime = utils::swish_prime;
     let n = 20;
     let epochs = 100000;
     let lr = 0.05f32;
@@ -21,7 +21,7 @@ fn main() {
     let y0 = x0.mapv(|xi| (2.0f32 * 3.141_592_7_f32 * xi).sin());
     // let y0 = x0.mapv(|xi| xi * xi);
     let mut mlp = utils::create_mlp(1, latent_size, 1, activation, activation_prime);
-    let gradients = mlp.backprop(&x0, &y0, utils::mse_prime);
+    let (lol, gradients) = mlp.backprop(&x0, &y0, utils::mse_prime);
 
     let ii = 2;
     println!("{:?}", mlp.layers[ii].weights);
@@ -49,7 +49,7 @@ fn main() {
     //     now.elapsed() / (n2 as u32)
     // );
     // testing grads and their shapes
-    let gradients = mlp.backprop(&x0, &y0, utils::mse_prime);
+    let (outputs, gradients) = mlp.backprop(&x0, &y0, utils::mse_prime);
     println!(
         "{:?}",
         gradients.layers[0]
@@ -58,35 +58,28 @@ fn main() {
             .unwrap()
             .insert_axis(Axis(0))
     );
-    for ll in mlp.layers {
+    for ll in &mlp.layers {
         println!("weights {:?}", ll.weights.clone().shape());
         println!("bias {:?}", ll.bias.clone().shape());
     }
-    // println!(
-    //     "{:?}",
-    //     (y0_hat.clone() - y0.clone())
-    //         .mapv(|x| x.abs())
-    //         .mean()
-    //         .unwrap()
-    // )
-    // Generate some sample data (sine wave)
-    let x: Vec<f64> = (0..100).map(|i| i as f64 * 0.1).collect();
-    let y: Vec<f64> = x.iter().map(|&xi| f64::sin(xi)).collect();
 
     // Create a new figure
     let mut fg = Figure::new();
-    let x02
-    // Plot the data as a blue line with circle markers
-    fg.axes2d()
-        .points(&x0, &y0, &[Caption("Sine Wave"), Color("blue")])
-        .lines_points(&x, &y, &[Caption("Sine Wave"), Color("red")]);
 
-    // Set the output file path
+    let x02 = Array::linspace(-1.0, 1.0, 100)
+        .insert_axis(Axis(1))
+        .mapv(|xi| xi as f32);
+    let y02 = mlp.forward(&x02);
+    // // Plot the data as a blue line with circle markers
+    fg.axes2d()
+        .lines(&x02, &y02, &[Caption("model"), Color("red")])
+        .points(&x0, &y0, &[Caption("data"), Color("blue")]);
+
+    // // Set the output file path
     let output_file = "plot.png";
 
-    // Save the figure to a file
+    // // Save the figure to a file
     fg.save_to_png(output_file, 800, 600)
         .expect("Unable to save plot");
-
     println!("Plot saved to {}", output_file);
 }

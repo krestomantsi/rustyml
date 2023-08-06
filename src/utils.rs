@@ -55,17 +55,25 @@ pub fn relu_prime(x: &Array2<f32>) -> Array2<f32> {
 }
 
 pub fn gelu_scalar(x: f32) -> f32 {
-    0.5f32 * x * (1.0f32 + (2.0f32 / 3.141_592_7_f32).sqrt() * (0.044715f32 * x * x * x))
+    let pif32 = std::f32::consts::PI;
+    0.5f32 * x * (1.0f32 + ((2.0f32 / pif32).sqrt() * (x + 0.044715f32 * x * x * x)).tanh())
 }
 
 pub fn gelu(x: &Array2<f32>) -> Array2<f32> {
     x.mapv(gelu_scalar)
 }
+
 pub fn gelu_prime_scalar(x: f32) -> f32 {
+    // pif32 = Float32(pi)
+    // @. 0.5f0 * (1.0f0 + tanh(sqrt(2.0f0 / pif32) * (x + 0.044715f0 * x^3))) + 0.5f0 * x * (1.0f0 - tanh(sqrt(2.0f0 / pif32) * (x + 0.044715f0 * x^3))) * (sqrt(2.0f0 / pif32) * (1.0f0 + 0.134145f0 * x^2))
+    let pif32 = std::f32::consts::PI;
     0.5f32
         * (1.0f32
-            + (2.0f32 / 3.141_592_7_f32).sqrt() * (0.044715f32 * x * x * x)
-            + (2.0f32 / 3.141_592_7_f32).sqrt() * (0.134145f32 * x * x * x * x * x))
+            + ((2.0f32 / pif32).sqrt() * (x + 0.044715f32 * x * x * x)).tanh()
+            + 0.5f32
+                * x
+                * (1.0f32 - ((2.0f32 / pif32).sqrt() * (x + 0.044715f32 * x * x * x)).tanh())
+                * ((2.0f32 / pif32).sqrt() * (1.0f32 + 0.134145f32 * x * x)))
 }
 
 pub fn gelu_prime(x: &Array2<f32>) -> Array2<f32> {
@@ -238,7 +246,7 @@ impl MLP {
         x: &Array2<f32>,
         target: &Array2<f32>,
         loss_prime: fn(&Array2<f32>, &Array2<f32>) -> Array2<f32>,
-    ) -> MLPGradient {
+    ) -> (Vec<Array2<f32>>, MLPGradient) {
         let mut gradients = Vec::new();
         let mut outputs = Vec::new();
         outputs.push(x.clone());
@@ -254,7 +262,7 @@ impl MLP {
             gradients.push(gradient);
         }
         gradients.reverse();
-        MLPGradient { layers: gradients }
+        (outputs, MLPGradient { layers: gradients })
     }
     // // Parallel forward using rayon and axis_chunks_iter
     pub fn parallel_forward(&self, input: &Array2<f32>, batch_size: usize) -> Array2<f32> {
@@ -276,6 +284,14 @@ impl MLP {
         )
         .unwrap();
         output
+    }
+    pub fn visualize(
+        &self,
+        x: &Array2<f32>,
+        y: &Array2<f32>,
+        loss_prime: fn(&Array2<f32>, &Array2<f32>),
+    ) {
+        let (outputs, gradients) = self.backprop(x, y, loss_prime);
     }
 }
 
@@ -306,7 +322,7 @@ pub fn train_mlp(
 ) -> MLP {
     let mut mlp = mlp.clone();
     for i in 0..epochs {
-        let gradients = mlp.backprop(x, y, loss_prime);
+        let (lol, gradients) = mlp.backprop(x, y, loss_prime);
         mlp = sgd(&mlp, &gradients, lr);
         if i % 1500 == 0 {
             println!("Epoch {} ||loss: {}", i, loss(&mlp.forward(x), y));
