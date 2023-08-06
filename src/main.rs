@@ -1,6 +1,8 @@
 // lets create a MLP (Multi Layer Perceptron) to do simple regression
 use gnuplot::{Caption, Color, Figure};
 use ndarray::prelude::*;
+use ndarray_rand::rand_distr::{Normal, Uniform};
+use ndarray_rand::RandomExt;
 
 // include utils.rs file
 mod utils;
@@ -75,11 +77,19 @@ fn main() {
         .lines(&x02, &y02, &[Caption("model"), Color("red")])
         .points(&x0, &y0, &[Caption("data"), Color("blue")]);
 
-    // // Set the output file path
+    // Set the output file path
     let output_file = "plot.png";
 
-    // // Save the figure to a file
+    // Save the figure to a file
     fg.save_to_png(output_file, 800, 600)
         .expect("Unable to save plot");
     println!("Plot saved to {}", output_file);
+    // random gaussian and then histogram
+    // let gauss = Normal::new(0.0, 1.0);
+    // let uniform = Uniform::new(0.0, 1.0);
+    // let lol = Array2::random((1000, 1), uniform).into_raw_vec();
+    // let mut fg = Figure::new();
+    // fg = utils::histogram(&lol);
+    // fg.save_to_png("histogram.png", 800, 600)
+    //     .expect("Unable to save plot");
 }
