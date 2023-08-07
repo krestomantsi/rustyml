@@ -1,7 +1,8 @@
 use gnuplot::{Caption, Color, Figure};
+use ndarray::iter::Windows;
 use ndarray::parallel::prelude::*;
 use ndarray::prelude::*;
-use ndarray_rand::rand_distr::Uniform;
+use ndarray_rand::rand_distr::{Distribution, Normal, Uniform};
 use ndarray_rand::RandomExt;
 
 // i want to implement a layer abstraction with a forward and backward pass
@@ -64,17 +65,22 @@ pub fn gelu(x: &Array2<f32>) -> Array2<f32> {
     x.mapv(gelu_scalar)
 }
 
+pub fn sech_scalar(x: f32) -> f32 {
+    1.0f32 / x.cosh()
+}
+
 pub fn gelu_prime_scalar(x: f32) -> f32 {
-    // pif32 = Float32(pi)
-    // @. 0.5f0 * (1.0f0 + tanh(sqrt(2.0f0 / pif32) * (x + 0.044715f0 * x^3))) + 0.5f0 * x * (1.0f0 - tanh(sqrt(2.0f0 / pif32) * (x + 0.044715f0 * x^3))) * (sqrt(2.0f0 / pif32) * (1.0f0 + 0.134145f0 * x^2))
-    let pif32 = std::f32::consts::PI;
+    let PI = std::f32::consts::PI;
+    let lam = (2.0f32 / PI).sqrt();
+    let a = 0.044715f32;
+    let tanh_term = ((x + a * x.powi(3)) * lam).tanh();
+    //(1 + x (1 + 3 x^2 α) λ Sech[(x + x^3 α) λ]^2 + Tanh[(x + x^3 α) λ])/2}
     0.5f32
         * (1.0f32
-            + ((2.0f32 / pif32).sqrt() * (x + 0.044715f32 * x * x * x)).tanh()
-            + 0.5f32
-                * x
-                * (1.0f32 - ((2.0f32 / pif32).sqrt() * (x + 0.044715f32 * x * x * x)).tanh())
-                * ((2.0f32 / pif32).sqrt() * (1.0f32 + 0.134145f32 * x * x)))
+            + x * (1.0f32 + 3.0f32 * x.powi(2) * a)
+                * lam
+                * sech_scalar(((x + x.powi(3) * a) * lam)).powi(2)
+            + tanh_term)
 }
 
 pub fn gelu_prime(x: &Array2<f32>) -> Array2<f32> {
@@ -177,6 +183,7 @@ impl Dense {
         (pullback, gradient)
     }
 }
+
 pub fn create_mlp(
     input_size: usize,
     latent_size: usize,
@@ -185,14 +192,17 @@ pub fn create_mlp(
     activation_prime: fn(&Array2<f32>) -> Array2<f32>,
 ) -> MLP {
     let mut layers = Vec::new();
-    let uniform = Uniform::new(-1.0, 1.0);
-    let weights1 = Array2::random((input_size, latent_size), uniform)
-        .mapv(|xi| xi / (latent_size as f32).sqrt());
+    let normal1 = Normal::new(0.0, 1.0).unwrap();
+    let weights1 = Array2::random((input_size, latent_size), normal1)
+        .mapv(|xi| xi / ((input_size as f32).sqrt()));
     let bias1 = Array2::zeros((1, latent_size));
-    let weights2 = Array2::random((latent_size, latent_size), uniform)
-        .mapv(|xi| xi / (latent_size as f32).sqrt());
+    let normal2 = Normal::new(0.0, 1.0).unwrap();
+    let weights2 = Array2::random((latent_size, latent_size), normal2)
+        .mapv(|xi| xi / ((latent_size as f32).sqrt()));
     let bias2 = Array2::zeros((1, latent_size));
-    let weights3 = Array2::random((latent_size, output_size), uniform).mapv(|xi| xi);
+    let normal3 = Normal::new(0.0, 1.0).unwrap();
+    let weights3 = Array2::random((latent_size, output_size), normal3)
+        .mapv(|xi| xi / ((latent_size as f32).sqrt()));
     let bias3 = Array2::zeros((1, output_size));
 
     layers.push(Dense {
@@ -335,6 +345,7 @@ pub fn train_mlp(
     loss_prime: fn(&Array2<f32>, &Array2<f32>) -> Array2<f32>,
 ) -> MLP {
     let mut mlp = mlp.clone();
+    let now = std::time::Instant::now();
     for i in 0..epochs {
         let (lol, gradients) = mlp.backprop(x, y, loss_prime);
         mlp = sgd(&mlp, &gradients, lr);
@@ -342,12 +353,14 @@ pub fn train_mlp(
             println!("Epoch {} ||loss: {}", i, loss(&mlp.forward(x), y));
         }
     }
+    println!("Training took {:?} seconds", now.elapsed());
     mlp
 }
 
 pub fn create_mlp_det(
     input_size: usize,
     latent_size: usize,
+    latent_size2: usize,
     output_size: usize,
     activation: fn(&Array2<f32>) -> Array2<f32>,
     activation_prime: fn(&Array2<f32>) -> Array2<f32>,
@@ -355,9 +368,9 @@ pub fn create_mlp_det(
     let mut layers = Vec::new();
     let weights1 = Array2::<f32>::ones((input_size, latent_size));
     let bias1 = Array2::zeros((1, latent_size));
-    let weights2 = Array2::<f32>::ones((latent_size, latent_size));
-    let bias2 = Array2::zeros((1, latent_size));
-    let weights3 = Array2::<f32>::ones((latent_size, output_size));
+    let weights2 = Array2::<f32>::ones((latent_size, latent_size2));
+    let bias2 = Array2::zeros((1, latent_size2));
+    let weights3 = Array2::<f32>::ones((latent_size2, output_size));
     let bias3 = Array2::zeros((1, output_size));
 
     layers.push(Dense {
@@ -415,4 +428,13 @@ pub fn histogram(x: &Vec<f32>) -> Figure {
     // print counts
     println!("counts: {:?}", counts);
     fg
+}
+
+// implement adam optimizer arxiv:1412.6980
+struct Adam {
+    beta1: f32,
+    beta2: f32,
+    epsilon: f32,
+    m: MLPGradient,
+    v: MLPGradient,
 }
