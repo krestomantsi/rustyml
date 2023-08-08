@@ -1,5 +1,5 @@
 // lets create a MLP (Multi Layer Perceptron) to do simple regression
-use gnuplot::{Caption, Color, Figure};
+use gnuplot::{AxesCommon, Caption, Color, DotDotDash, Figure, LineStyle};
 use ndarray::prelude::*;
 use ndarray_rand::rand_distr::{Distribution, Normal, Uniform};
 use ndarray_rand::RandomExt;
@@ -12,8 +12,8 @@ fn main() {
     let latent_size2 = 32;
     let activation = utils::swish;
     let activation_prime = utils::swish_prime;
-    let n = 20;
-    let epochs = 200000;
+    let n = 40;
+    let epochs = 300_000;
     let lr = 0.05f32;
 
     // // test backward
@@ -22,7 +22,7 @@ fn main() {
         .insert_axis(Axis(1))
         .mapv(|xi| xi as f32);
     let pi = std::f32::consts::PI;
-    let y0 = x0.mapv(|xi| (2.0f32 * pi * xi).sin());
+    let y0 = x0.mapv(|xi| (4.0f32 * pi * xi).sin());
     // let y0 = x0.mapv(|xi| xi * xi);
     let mut mlp = utils::create_mlp(1, latent_size, 1, activation, activation_prime);
     // let mut mlp = utils::create_mlp_det(
@@ -38,8 +38,8 @@ fn main() {
     let ii = 1;
     println!("{:?}", mlp.layers[ii].weights);
     println!("{:?}", mlp.layers[ii].bias);
-    // println!("{:?}", gradients.layers[ii].weights);
-    // println!("{:?}", gradients.layers[ii].bias);
+    println!("{:?}", gradients.layers[ii].weights);
+    println!("{:?}", gradients.layers[ii].bias);
 
     let mlp = utils::train_mlp(&mut mlp, &x0, &y0, lr, epochs, utils::mse, utils::mse_prime);
     // let y0_hat = mlp.forward(&x0);
@@ -84,32 +84,14 @@ fn main() {
         .mapv(|xi| xi as f32);
     let y02 = mlp.forward(&x02);
     // // Plot the data as a blue line with circle markers
-    fg.axes2d()
+    let ax = fg
+        .axes2d()
         .lines(&x02, &y02, &[Caption("model"), Color("red")])
         .points(&x0, &y0, &[Caption("data"), Color("blue")]);
-
-    // Set the output file path
-    let output_file = "plot.png";
-
-    // Save the figure to a file
-    fg.save_to_png(output_file, 800, 600)
+    ax.set_grid_options(true, &[LineStyle(DotDotDash), Color("black")])
+        .set_x_grid(true)
+        .set_y_grid(true);
+    fg.save_to_png("plot.png", 800, 600)
         .expect("Unable to save plot");
-    println!("Plot saved to {}", output_file);
-    // plot gelu_prime
-    // let x2 = Array::linspace(-5.0, 5.0, 20)
-    //     .insert_axis(Axis(1))
-    //     .mapv(|xi| xi as f32);
-
-    // let y2 = utils::gelu_prime(&x2);
-    // let mut fg2 = Figure::new();
-    // fg2.axes2d()
-    //     .lines(&x2, &y2, &[Caption("gelu_prime"), Color("blue")]);
-    // let output_file2 = "siws.png";
-    // fg2.save_to_png(output_file2, 800, 600)
-    //     .expect("Unable to save plot");
-    // let y3 = utils::gelu_prime(&x2);
-    // println!("{:?}", y3);
-
-    // println!("{:?}", mlp.forward(&x0));
-    // make a matrix of 10,10 with normal distribution
+    println!("Plot saved");
 }

@@ -173,12 +173,14 @@ impl Dense {
     pub fn backward(
         &self,
         input: &Array2<f32>,
+        output: &Array2<f32>,
         pullback: &Array2<f32>,
     ) -> (Array2<f32>, DenseGradient) {
-        let bias = pullback.clone().sum_axis(Axis(0)).insert_axis(Axis(0));
-        let weights = input.t().dot(pullback);
-
-        let pullback = pullback.dot(&self.weights.t()) * (self.activation_prime)(input);
+        let m = input.shape()[0];
+        let dz = pullback * (self.activation_prime)(output);
+        let bias = dz.clone().sum_axis(Axis(0)).insert_axis(Axis(0));
+        let weights = input.t().dot(&dz);
+        let pullback = dz.dot(&self.weights.t());
         let gradient = DenseGradient { weights, bias };
         (pullback, gradient)
     }
@@ -194,7 +196,7 @@ pub fn create_mlp(
     let mut layers = Vec::new();
     let normal1 = Normal::new(0.0, 1.0).unwrap();
     let weights1 = Array2::random((input_size, latent_size), normal1)
-        .mapv(|xi| xi / ((input_size as f32).sqrt()));
+        .mapv(|xi| xi / ((latent_size as f32).sqrt()));
     let bias1 = Array2::zeros((1, latent_size));
     let normal2 = Normal::new(0.0, 1.0).unwrap();
     let weights2 = Array2::random((latent_size, latent_size), normal2)
@@ -244,8 +246,9 @@ impl MLP {
             outputs.push(output.clone());
         }
         let mut pullback = pullback.clone();
-        for i in (0..self.layers.len()).rev() {
-            let (pullback_, gradient) = self.layers[i].backward(&outputs[i], &pullback);
+        for i in (1..self.layers.len() + 1).rev() {
+            let (pullback_, gradient) =
+                self.layers[i - 1].backward(&outputs[i - 1], &outputs[i], &pullback);
             pullback = pullback_;
             gradients.push(gradient);
         }
@@ -267,8 +270,9 @@ impl MLP {
             outputs.push(output.clone());
         }
         let mut pullback = loss_prime(&outputs[outputs.len() - 1], target);
-        for i in (0..self.layers.len()).rev() {
-            let (pullback_, gradient) = self.layers[i].backward(&outputs[i], &pullback);
+        for i in (1..self.layers.len() + 1).rev() {
+            let (pullback_, gradient) =
+                self.layers[i - 1].backward(&outputs[i - 1], &outputs[i], &pullback);
             pullback = pullback_;
             gradients.push(gradient);
         }
