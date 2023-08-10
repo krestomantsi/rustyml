@@ -1,5 +1,5 @@
 use gnuplot::{Caption, Color, Figure};
-use ndarray::iter::Windows;
+// use ndarray::iter::Windows;
 use ndarray::parallel::prelude::*;
 use ndarray::prelude::*;
 use ndarray_rand::rand_distr::{Distribution, Normal, Uniform};
@@ -440,17 +440,17 @@ pub fn histogram(x: &Vec<f32>) -> Figure {
 
 // implement adam optimizer arxiv:1412.6980
 #[allow(dead_code)]
-struct Adam {
-    lr: f32,
-    beta1: f32,
-    beta2: f32,
-    epsilon: f32,
-    m: MLPGradient,
-    v: MLPGradient,
+#[derive(Debug, Clone)]
+pub struct Adam {
+    pub lr: f32,
+    pub beta1: f32,
+    pub beta2: f32,
+    pub epsilon: f32,
+    pub m: MLPGradient,
+    pub v: MLPGradient,
 }
 
-// lets make a function that multiplies a struct with a scalar and returns a struct
-pub fn fmap(mlp: &MLPGradient, f: fn(f32) -> f32) -> MLPGradient {
+pub fn fmap(mlp: MLPGradient, f: fn(f32) -> f32) -> MLPGradient {
     let mut layers = Vec::new();
     for layer in &mlp.layers {
         let weights = &layer.weights.mapv(f);
@@ -464,26 +464,62 @@ pub fn fmap(mlp: &MLPGradient, f: fn(f32) -> f32) -> MLPGradient {
     MLPGradient { layers }
 }
 
-// pub fn bin_fmap(mlp1: &MLPGradient, mlp2: &MLPGradient, f: fn(f32, f32) -> f32) -> MLPGradient {
-//     let mut layers = Vec::new();
-//     for i in 0..mlp1.layers.len() {
-//         let weights = &mlp1.layers[i].weights.
-//         let bias = &mlp1.layers[i].bias + &mlp2.layers[i].bias;
-//         layers.push(DenseGradient { weights, bias });
-//     }
-//     MLPGradient { layers }
-// }
+pub fn fmul(mlp: &MLPGradient, a: f32) -> MLPGradient {
+    let mut layers = Vec::new();
+    for layer in &mlp.layers {
+        let weights = &layer.weights.mapv(|x| a * x);
+        let bias = &layer.bias.mapv(|x| a * x);
+        let gradient = DenseGradient {
+            weights: weights.clone(),
+            bias: bias.clone(),
+        };
+        layers.push(gradient);
+    }
+    MLPGradient { layers }
+}
 
-// pub fn adam(lr, beta1, beta2,grads)-> Adam {
-//     grads = grads.clone();
-//     m = 0*grads;
-//     v = 0*grads;
-//     Adam {
-//         lr,
-//         beta1,
-//         beta2,
-//         1f-6,
-//         m: m,
-//         v: v,
-//     }
-// }
+pub fn bin_fmap(
+    g1: MLPGradient,
+    g2: MLPGradient,
+    f: fn(&Array2<f32>, &Array2<f32>) -> Array2<f32>,
+) -> MLPGradient {
+    let mut layers = Vec::new();
+    for ll in g1.layers.iter().zip(g2.layers.iter()) {
+        let weights = f(&ll.0.weights, &ll.1.weights);
+        let bias = f(&ll.0.bias, &ll.1.bias);
+        let gradient = DenseGradient {
+            weights: weights.clone(),
+            bias: bias.clone(),
+        };
+        layers.push(gradient);
+    }
+    MLPGradient { layers }
+}
+
+pub fn adam_init(grads: MLPGradient, lr: f32, beta1: f32, beta2: f32) -> Adam {
+    let m = fmap(grads.clone(), |_| 0.0 as f32);
+    let v = fmap(grads.clone(), |_| 0.0 as f32);
+    Adam {
+        lr,
+        beta1,
+        beta2,
+        epsilon: 1e-8 as f32,
+        m,
+        v,
+    }
+}
+
+pub fn adam(mlp: MLP, grads: MLPGradient, mut adam: Adam) -> MLP {
+    let b: f32 = adam.beta1;
+    let b2: f32 = adam.beta2;
+    let b11: f32 = 1.0 - b;
+    let b22: f32 = 1.0 - b2;
+    let m = adam.m;
+    let v = adam.v;
+    let lr = adam.lr;
+    let m2 = bin_fmap(fmul(&m, b), fmul(&grads, b2), |x, y| x + y);
+    let g2 = fmap(grads, |x| x * x);
+    let v2 = bin_fmap(fmul(&v, b2), fmul(&g2, b22), |x, y| x + y);
+    let m2 = fmul(&m2, 1.0 / b11);
+    let v2 = fmul(&v2, 1.0 / b22);
+}

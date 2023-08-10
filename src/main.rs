@@ -14,7 +14,7 @@ fn main() {
     let activation_prime = utils::gelu_prime;
     let n = 50;
     let epochs = 100_000;
-    let lr = 0.02f32;
+    let lr = 0.05f32;
 
     // test backward
     // simple example for y=x^2
@@ -95,4 +95,9 @@ fn main() {
         .expect("Unable to save plot");
     println!("Plot saved");
     // fg.show().expect("Unable to show plot");
+    //init adam
+    let beta1 = 0.9;
+    let beta2 = 0.999;
+    let mut opti = utils::adam_init(gradients, lr, beta1, beta2);
+    println!("Adam initialized  {:?}", opti)
 }
