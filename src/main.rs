@@ -10,13 +10,13 @@ mod utils;
 fn main() {
     let latent_size = 32;
     let latent_size2 = 32;
-    let activation = utils::swish;
-    let activation_prime = utils::swish_prime;
-    let n = 40;
-    let epochs = 300_000;
-    let lr = 0.05f32;
+    let activation = utils::gelu;
+    let activation_prime = utils::gelu_prime;
+    let n = 50;
+    let epochs = 100_000;
+    let lr = 0.02f32;
 
-    // // test backward
+    // test backward
     // simple example for y=x^2
     let x0 = Array::linspace(-1.0, 1.0, n)
         .insert_axis(Axis(1))
@@ -33,7 +33,7 @@ fn main() {
     //     activation,
     //     activation_prime,
     // );
-    let (lol, gradients) = mlp.backprop(&x0, &y0, utils::mse_prime);
+    let (_lol, gradients) = mlp.backprop(&x0, &y0, utils::mse_prime);
 
     let ii = 1;
     println!("{:?}", mlp.layers[ii].weights);
@@ -94,4 +94,5 @@ fn main() {
     fg.save_to_png("plot.png", 800, 600)
         .expect("Unable to save plot");
     println!("Plot saved");
+    // fg.show().expect("Unable to show plot");
 }

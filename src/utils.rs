@@ -32,6 +32,7 @@ pub struct MLPGradient {
 }
 
 // relu on f32
+#[allow(dead_code)]
 pub fn relu_scalar(x: f32) -> f32 {
     if x > 0.0f32 {
         x
@@ -40,6 +41,7 @@ pub fn relu_scalar(x: f32) -> f32 {
     }
 }
 
+#[allow(dead_code)]
 pub fn relu_prime_scalar(x: f32) -> f32 {
     if x > 0.0 {
         1.0f32
@@ -48,19 +50,23 @@ pub fn relu_prime_scalar(x: f32) -> f32 {
     }
 }
 
+#[allow(dead_code)]
 pub fn relu(x: &Array2<f32>) -> Array2<f32> {
     x.mapv(relu_scalar)
 }
 
+#[allow(dead_code)]
 pub fn relu_prime(x: &Array2<f32>) -> Array2<f32> {
     x.mapv(relu_prime_scalar)
 }
 
+#[allow(dead_code)]
 pub fn gelu_scalar(x: f32) -> f32 {
     let pif32 = std::f32::consts::PI;
     0.5f32 * x * (1.0f32 + ((2.0f32 / pif32).sqrt() * (x + 0.044715f32 * x * x * x)).tanh())
 }
 
+#[allow(dead_code)]
 pub fn gelu(x: &Array2<f32>) -> Array2<f32> {
     x.mapv(gelu_scalar)
 }
@@ -69,9 +75,10 @@ pub fn sech_scalar(x: f32) -> f32 {
     1.0f32 / x.cosh()
 }
 
+#[allow(dead_code)]
 pub fn gelu_prime_scalar(x: f32) -> f32 {
-    let PI = std::f32::consts::PI;
-    let lam = (2.0f32 / PI).sqrt();
+    let pi = std::f32::consts::PI;
+    let lam = (2.0f32 / pi).sqrt();
     let a = 0.044715f32;
     let tanh_term = ((x + a * x.powi(3)) * lam).tanh();
     //(1 + x (1 + 3 x^2 α) λ Sech[(x + x^3 α) λ]^2 + Tanh[(x + x^3 α) λ])/2}
@@ -79,14 +86,16 @@ pub fn gelu_prime_scalar(x: f32) -> f32 {
         * (1.0f32
             + x * (1.0f32 + 3.0f32 * x.powi(2) * a)
                 * lam
-                * sech_scalar(((x + x.powi(3) * a) * lam)).powi(2)
+                * sech_scalar((x + x.powi(3) * a) * lam).powi(2)
             + tanh_term)
 }
 
+#[allow(dead_code)]
 pub fn gelu_prime(x: &Array2<f32>) -> Array2<f32> {
     x.mapv(gelu_prime_scalar)
 }
 
+#[allow(dead_code)]
 pub fn leaky_relu_scalar(x: f32) -> f32 {
     if x > 0.0f32 {
         x
@@ -94,6 +103,8 @@ pub fn leaky_relu_scalar(x: f32) -> f32 {
         0.01f32 * x
     }
 }
+
+#[allow(dead_code)]
 pub fn leaky_relu_prime_scalar(x: f32) -> f32 {
     if x > 0.0f32 {
         1.0f32
@@ -102,43 +113,53 @@ pub fn leaky_relu_prime_scalar(x: f32) -> f32 {
     }
 }
 
+#[allow(dead_code)]
 pub fn leaky_relu(x: &Array2<f32>) -> Array2<f32> {
     x.mapv(leaky_relu_scalar)
 }
 
+#[allow(dead_code)]
 pub fn leaky_relu_prime(x: &Array2<f32>) -> Array2<f32> {
     x.mapv(leaky_relu_prime_scalar)
 }
 
+#[allow(dead_code)]
 pub fn swish_scalar(x: f32) -> f32 {
     x / (1.0f32 + (-x).exp())
 }
 
+#[allow(dead_code)]
 pub fn swish_prime_scalar(x: f32) -> f32 {
     let dumpa = 1.0f32 + (-x).exp();
     (x * dumpa + dumpa - x) / dumpa.powi(2)
 }
 
+#[allow(dead_code)]
 pub fn swish(x: &Array2<f32>) -> Array2<f32> {
     x.mapv(swish_scalar)
 }
 
+#[allow(dead_code)]
 pub fn swish_prime(x: &Array2<f32>) -> Array2<f32> {
     x.mapv(swish_prime_scalar)
 }
 
+#[allow(dead_code)]
 pub fn none_activation(x: &Array2<f32>) -> Array2<f32> {
     x.clone()
 }
 
+#[allow(dead_code)]
 pub fn mse(x: &Array2<f32>, target: &Array2<f32>) -> f32 {
     (x - target).mapv(|xi| xi * xi).mean().unwrap()
 }
 
+#[allow(dead_code)]
 pub fn mse_prime(x: &Array2<f32>, target: &Array2<f32>) -> Array2<f32> {
     let n = x.shape()[0] as f32;
     2.0 * (x - target) / (n)
 }
+
 // derivative of None activation is 1
 pub fn none_activation_prime(x: &Array2<f32>) -> Array2<f32> {
     Array2::<f32>::ones(x.raw_dim())
@@ -149,34 +170,13 @@ impl Dense {
     pub fn forward(&self, input: &Array2<f32>) -> Array2<f32> {
         (self.activation)(&(&input.dot(&self.weights) + &self.bias))
     }
-    // pub fn forward(&self, input: &Array2<f32>) -> Array2<f32> {
-    //     let x = input.dot(&self.weights);
-    //     // println!(
-    //     //     "x shape: {:?}, bias shape: {:?}",
-    //     //     x.shape(),
-    //     //     self.bias.shape()
-    //     // );
-    //     // THIS PART IF fucked up
-    //     // ndarray broadcasting rules mutated my bias and changed the shape
-    //     // this is obviously not intented behavior
-    //     // dfdx discord said we should make an issue about this
-    //     let x = &x
-    //         + &self
-    //             .bias
-    //             .clone()
-    //             .remove_axis(Axis(0))
-    //             .broadcast(x.raw_dim())
-    //             .unwrap();
-    //     let x = (self.activation)(&x);
-    //     x
-    // }
     pub fn backward(
         &self,
         input: &Array2<f32>,
         output: &Array2<f32>,
         pullback: &Array2<f32>,
     ) -> (Array2<f32>, DenseGradient) {
-        let m = input.shape()[0];
+        // let m = input.shape()[0];
         let dz = pullback * (self.activation_prime)(output);
         let bias = dz.clone().sum_axis(Axis(0)).insert_axis(Axis(0));
         let weights = input.t().dot(&dz);
@@ -324,6 +324,7 @@ impl MLP {
 }
 
 // this wont stay here for long I need a better abstraction
+#[allow(dead_code)]
 pub fn sgd(mlp: &MLP, gradients: &MLPGradient, lr: f32) -> MLP {
     let mut layers = Vec::new();
     for i in 0..mlp.layers.len() {
@@ -351,7 +352,7 @@ pub fn train_mlp(
     let mut mlp = mlp.clone();
     let now = std::time::Instant::now();
     for i in 0..epochs {
-        let (lol, gradients) = mlp.backprop(x, y, loss_prime);
+        let (_lol, gradients) = mlp.backprop(x, y, loss_prime);
         mlp = sgd(&mlp, &gradients, lr);
         if i % 1500 == 0 {
             println!("Epoch {} ||loss: {}", i, loss(&mlp.forward(x), y));
@@ -361,6 +362,7 @@ pub fn train_mlp(
     mlp
 }
 
+#[allow(dead_code)]
 pub fn create_mlp_det(
     input_size: usize,
     latent_size: usize,
@@ -398,6 +400,7 @@ pub fn create_mlp_det(
     MLP { layers }
 }
 
+#[allow(dead_code)]
 pub fn count_in(a: f32, b: f32, xdata: Array1<f32>) -> usize {
     let mut count = 0;
     for i in 0..xdata.len() {
@@ -413,6 +416,7 @@ pub fn count_in(a: f32, b: f32, xdata: Array1<f32>) -> usize {
 /// * `x` - Vector of floats
 /// # Returns
 /// * `Figure` (GNUplot) - Histogram of x
+#[allow(dead_code)]
 pub fn histogram(x: &Vec<f32>) -> Figure {
     let n = x.len() as u32;
     let xdata = Array1::from_vec(x.clone());
@@ -435,10 +439,51 @@ pub fn histogram(x: &Vec<f32>) -> Figure {
 }
 
 // implement adam optimizer arxiv:1412.6980
+#[allow(dead_code)]
 struct Adam {
+    lr: f32,
     beta1: f32,
     beta2: f32,
     epsilon: f32,
     m: MLPGradient,
     v: MLPGradient,
 }
+
+// lets make a function that multiplies a struct with a scalar and returns a struct
+pub fn fmap(mlp: &MLPGradient, f: fn(f32) -> f32) -> MLPGradient {
+    let mut layers = Vec::new();
+    for layer in &mlp.layers {
+        let weights = &layer.weights.mapv(f);
+        let bias = &layer.bias.mapv(f);
+        let gradient = DenseGradient {
+            weights: weights.clone(),
+            bias: bias.clone(),
+        };
+        layers.push(gradient);
+    }
+    MLPGradient { layers }
+}
+
+// pub fn bin_fmap(mlp1: &MLPGradient, mlp2: &MLPGradient, f: fn(f32, f32) -> f32) -> MLPGradient {
+//     let mut layers = Vec::new();
+//     for i in 0..mlp1.layers.len() {
+//         let weights = &mlp1.layers[i].weights.
+//         let bias = &mlp1.layers[i].bias + &mlp2.layers[i].bias;
+//         layers.push(DenseGradient { weights, bias });
+//     }
+//     MLPGradient { layers }
+// }
+
+// pub fn adam(lr, beta1, beta2,grads)-> Adam {
+//     grads = grads.clone();
+//     m = 0*grads;
+//     v = 0*grads;
+//     Adam {
+//         lr,
+//         beta1,
+//         beta2,
+//         1f-6,
+//         m: m,
+//         v: v,
+//     }
+// }
