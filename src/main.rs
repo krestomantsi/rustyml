@@ -10,11 +10,11 @@ mod utils;
 fn main() {
     let latent_size = 32;
     let latent_size2 = 32;
-    let activation = utils::gelu;
-    let activation_prime = utils::gelu_prime;
+    let activation = utils::swish;
+    let activation_prime = utils::swish_prime;
     let n = 50;
     let epochs = 100_000;
-    let lr = 0.05f32;
+    let lr = 0.01f32;
 
     // test backward
     // simple example for y=x^2
@@ -96,8 +96,7 @@ fn main() {
     println!("Plot saved");
     // fg.show().expect("Unable to show plot");
     //init adam
-    let beta1 = 0.9;
-    let beta2 = 0.999;
-    let mut opti = utils::adam_init(gradients, lr, beta1, beta2);
-    println!("Adam initialized  {:?}", opti)
+
+    let mut opti = utils::adam_init(gradients, lr, 0.9, 0.999);
+    // println!("Adam initialized  {:?}", opti)
 }

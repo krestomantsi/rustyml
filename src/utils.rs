@@ -351,9 +351,12 @@ pub fn train_mlp(
 ) -> MLP {
     let mut mlp = mlp.clone();
     let now = std::time::Instant::now();
+    let (_lol, gradients) = mlp.backprop(x, y, loss_prime);
+    let mut opt = adam_init(gradients, lr, 0.9, 0.999);
     for i in 0..epochs {
         let (_lol, gradients) = mlp.backprop(x, y, loss_prime);
-        mlp = sgd(&mlp, &gradients, lr);
+        // mlp = sgd(&mlp, &gradients, lr);
+        mlp = adam(mlp, gradients, &mut opt);
         if i % 1500 == 0 {
             println!("Epoch {} ||loss: {}", i, loss(&mlp.forward(x), y));
         }
@@ -448,6 +451,7 @@ pub struct Adam {
     pub epsilon: f32,
     pub m: MLPGradient,
     pub v: MLPGradient,
+    pub t: i32,
 }
 
 pub fn fmap(mlp: MLPGradient, f: fn(f32) -> f32) -> MLPGradient {
@@ -506,20 +510,44 @@ pub fn adam_init(grads: MLPGradient, lr: f32, beta1: f32, beta2: f32) -> Adam {
         epsilon: 1e-8 as f32,
         m,
         v,
+        t: 0,
     }
 }
 
-pub fn adam(mlp: MLP, grads: MLPGradient, mut adam: Adam) -> MLP {
+pub fn adam(mlp: MLP, grads: MLPGradient, mut adam: &mut Adam) -> MLP {
+    let t = adam.t + 1;
     let b: f32 = adam.beta1;
     let b2: f32 = adam.beta2;
     let b11: f32 = 1.0 - b;
     let b22: f32 = 1.0 - b2;
-    let m = adam.m;
-    let v = adam.v;
-    let lr = adam.lr;
-    let m2 = bin_fmap(fmul(&m, b), fmul(&grads, b2), |x, y| x + y);
-    let g2 = fmap(grads, |x| x * x);
-    let v2 = bin_fmap(fmul(&v, b2), fmul(&g2, b22), |x, y| x + y);
-    let m2 = fmul(&m2, 1.0 / b11);
-    let v2 = fmul(&v2, 1.0 / b22);
+    let mut layers = Vec::new();
+    for ll in 0..mlp.layers.len() {
+        // there must be a better way to do this
+        let mw = b * (&adam.m.layers[ll].weights) + b11 * (&grads.layers[ll].weights);
+        let mb = b * (&adam.m.layers[ll].bias) + b11 * (&grads.layers[ll].bias);
+        let vw =
+            b2 * (&adam.v.layers[ll].weights) + b22 * (&grads.layers[ll].weights.mapv(|x| x * x));
+        let vb = b2 * (&adam.v.layers[ll].bias) + b22 * (&grads.layers[ll].bias.mapv(|x| x * x));
+        let mhatb = mb.mapv(|x| x / (1.0 - b.powi(t)));
+        let mhatw = mw.mapv(|x| x / (1.0 - b.powi(t)));
+        let vhatb = vb.mapv(|x| x / (1.0 - b2.powi(t)));
+        let vhatw = vw.mapv(|x| x / (1.0 - b2.powi(t)));
+        let vhatb = vhatb.mapv(|x| x.sqrt());
+        let vhatw = vhatw.mapv(|x| x.sqrt());
+        let w = &mlp.layers[ll].weights - adam.lr * &mhatw / (&vhatw + adam.epsilon);
+        let b = &mlp.layers[ll].bias - adam.lr * &mhatb / (&vhatb + adam.epsilon);
+
+        let layer = Dense {
+            weights: w.clone(),
+            bias: b.clone(),
+            activation: mlp.layers[ll].activation,
+            activation_prime: mlp.layers[ll].activation_prime,
+        };
+        adam.m.layers[ll].weights = mw;
+        adam.m.layers[ll].bias = mb;
+        adam.v.layers[ll].weights = vw;
+        adam.v.layers[ll].bias = vb;
+        layers.push(layer);
+    }
+    MLP { layers }
 }
