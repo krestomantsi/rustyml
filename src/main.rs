@@ -9,9 +9,8 @@ mod utils;
 
 fn main() {
     let latent_size = 32;
-    let latent_size2 = 32;
-    let activation = utils::swish;
-    let activation_prime = utils::swish_prime;
+    let activation = utils::leaky_relu;
+    let activation_prime = utils::leaky_relu_prime;
     let n = 50;
     let epochs = 100_000;
     let lr = 0.01f32;
@@ -25,22 +24,9 @@ fn main() {
     let pi = std::f32::consts::PI;
     let y0 = x0.mapv(|xi| (4.0f32 * pi * xi).sin());
     // let y0 = x0.mapv(|xi| xi * xi);
-    let mut mlp = utils::create_mlp(1, latent_size, 1, activation, activation_prime);
-    // let mut mlp = utils::create_mlp_det(
-    //     1,
-    //     latent_size,
-    //     latent_size2,
-    //     1,
-    //     activation,
-    //     activation_prime,
-    // );
-    let (_lol, gradients) = mlp.backprop(&x0, &y0, utils::mse_prime);
 
-    let ii = 1;
-    println!("{:?}", mlp.layers[ii].weights);
-    println!("{:?}", mlp.layers[ii].bias);
-    println!("{:?}", gradients.layers[ii].weights);
-    println!("{:?}", gradients.layers[ii].bias);
+    let mut mlp = utils::create_mlp(1, latent_size, 1, activation, activation_prime);
+    let (_lol, gradients) = mlp.backprop(&x0, &y0, utils::mse_prime);
 
     let mlp = utils::train_mlp(
         &mut mlp,
