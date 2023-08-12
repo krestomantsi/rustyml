@@ -12,7 +12,7 @@ fn main() {
     let activation = utils::leaky_relu;
     let activation_prime = utils::leaky_relu_prime;
     let n = 50;
-    let epochs = 100_000;
+    let epochs = 30_000;
     let lr = 0.01f32;
     let wd = 0.0001f32;
 
