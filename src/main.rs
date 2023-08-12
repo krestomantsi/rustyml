@@ -14,7 +14,7 @@ fn main() {
     let n = 50;
     let epochs = 30_000;
     let lr = 0.01f32;
-    let wd = 0.0001f32;
+    let wd = 0.00f32;
 
     // test backward
     // simple example for y=x^2
