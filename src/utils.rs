@@ -4,8 +4,11 @@ use ndarray::parallel::prelude::*;
 use ndarray::prelude::*;
 use ndarray_rand::rand_distr::{Distribution, Normal, Uniform};
 use ndarray_rand::RandomExt;
+// import Add
+//use derive_more::{Add, Mul};
 
 // i want to implement a layer abstraction with a forward and backward pass
+// Implement Add for Vec<T> where T implements Add
 
 #[derive(Clone, Debug)]
 pub struct Dense {
@@ -24,6 +27,20 @@ pub struct DenseGradient {
 #[derive(Clone, Debug)]
 pub struct MLP {
     pub layers: Vec<Dense>,
+}
+// implement add for Vec<DenseGradient>
+impl core::ops::Add for MLPGradient {
+    type Output = Self;
+    fn add(self, other: Self) -> Self {
+        let mut layers = Vec::new();
+        for i in 0..self.layers.len() {
+            let weights = &self.layers[i].weights + &other.layers[i].weights;
+            let bias = &self.layers[i].bias + &other.layers[i].bias;
+            let gradient = DenseGradient { weights, bias };
+            layers.push(gradient);
+        }
+        MLPGradient { layers }
+    }
 }
 
 #[derive(Clone, Debug)]

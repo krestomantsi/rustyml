@@ -9,8 +9,8 @@ mod utils;
 
 fn main() {
     let latent_size = 32;
-    let activation = utils::leaky_relu;
-    let activation_prime = utils::leaky_relu_prime;
+    let activation = utils::swish;
+    let activation_prime = utils::swish_prime;
     let n = 50;
     let epochs = 30_000;
     let lr = 0.01f32;
