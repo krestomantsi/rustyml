@@ -296,7 +296,7 @@ impl MLP {
         gradients.reverse();
         (outputs, MLPGradient { layers: gradients })
     }
-    // // Parallel forward using rayon and axis_chunks_iter
+    // Parallel forward using rayon and axis_chunks_iter
     pub fn parallel_forward(&self, input: &Array2<f32>, batch_size: usize) -> Array2<f32> {
         // Split the input into chunks along axis 0
         let chunks = input.axis_chunks_iter(Axis(0), batch_size);

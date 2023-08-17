@@ -9,12 +9,12 @@ mod utils;
 
 fn main() {
     let latent_size = 32;
-    let activation = utils::swish;
-    let activation_prime = utils::swish_prime;
-    let n = 50;
+    let activation = utils::leaky_relu;
+    let activation_prime = utils::leaky_relu_prime;
+    let n = 20;
     let epochs = 30_000;
     let lr = 0.01f32;
-    let wd = 0.00f32;
+    let wd = 0.0001f32;
 
     // test backward
     // simple example for y=x^2
