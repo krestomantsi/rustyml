@@ -1,20 +1,23 @@
+use std::process::Output;
+
 // lets create a MLP (Multi Layer Perceptron) to do simple regression
 use gnuplot::{AxesCommon, Caption, Color, DotDotDash, Figure, LineStyle};
-use ndarray::prelude::*;
+use ndarray::{parallel, prelude::*};
 use ndarray_rand::rand_distr::{Distribution, Normal, Uniform};
 use ndarray_rand::RandomExt;
+use rayon::prelude::*;
 
 // include utils.rs file
 mod utils;
 
 fn main() {
     let latent_size = 32;
-    let activation = utils::swish;
-    let activation_prime = utils::swish_prime;
-    let n = 30;
+    let activation = utils::relu;
+    let activation_prime = utils::relu_prime;
+    let n = 100;
     let epochs = 30_000;
     let lr = 0.01f32;
-    let wd = 0.0001f32;
+    let wd = 0.000f32;
 
     // test backward
     // simple example for y=x^2
@@ -23,7 +26,7 @@ fn main() {
         .mapv(|xi| xi as f32);
     let pi = std::f32::consts::PI;
     let y0 = x0.mapv(|xi| (4.0f32 * pi * xi).sin());
-    // let y0 = x0.mapv(|xi| xi * xi);
+    // let y0 = x0.mapv(|xi| xi * xi * xi);
 
     let mut mlp = utils::create_mlp(1, latent_size, 1, activation, activation_prime);
     let (_lol, gradients) = mlp.backprop(&x0, &y0, utils::mse_prime);
@@ -37,6 +40,7 @@ fn main() {
         epochs,
         utils::mse,
         utils::mse_prime,
+        true,
     );
 
     // let now = std::time::Instant::now();

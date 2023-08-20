@@ -4,8 +4,6 @@ use ndarray::parallel::prelude::*;
 use ndarray::prelude::*;
 use ndarray_rand::rand_distr::{Distribution, Normal, Uniform};
 use ndarray_rand::RandomExt;
-// import Add
-//use derive_more::{Add, Mul};
 
 // i want to implement a layer abstraction with a forward and backward pass
 // Implement Add for Vec<T> where T implements Add
@@ -25,9 +23,22 @@ pub struct DenseGradient {
 }
 
 #[derive(Clone, Debug)]
+pub struct LayerNorm {
+    pub weights: Array2<f32>,
+    pub bias: Array2<f32>,
+}
+
+#[derive(Clone, Debug)]
 pub struct MLP {
     pub layers: Vec<Dense>,
 }
+
+#[derive(Clone, Debug)]
+pub struct MLPLayerNorm {
+    pub layers: Vec<Dense>,
+    pub layernorm: LayerNorm,
+}
+
 // implement add for Vec<DenseGradient>
 impl core::ops::Add for MLPGradient {
     type Output = Self;
@@ -296,6 +307,32 @@ impl MLP {
         gradients.reverse();
         (outputs, MLPGradient { layers: gradients })
     }
+    pub fn parallel_backprop(
+        &self,
+        x0: &Array2<f32>,
+        y0: &Array2<f32>,
+        loss_prime: fn(&Array2<f32>, &Array2<f32>) -> Array2<f32>,
+        batch_size: usize,
+    ) -> MLPGradient {
+        // parallel chunks
+        let chunks = x0
+            .axis_chunks_iter(Axis(0), batch_size)
+            .into_par_iter()
+            .zip(y0.axis_chunks_iter(Axis(0), batch_size).into_par_iter());
+        let parchunks = chunks;
+        // parallel call and dump into a vec
+        let vecgrads: Vec<MLPGradient> = parchunks
+            .map(|(xx, yy)| self.backprop(&xx.to_owned(), &yy.to_owned(), loss_prime).1)
+            .collect();
+        // take the mean
+        let mut gradssum = fmap(vecgrads[0].clone(), |_| 0.0 as f32);
+        let n = vecgrads.len();
+        let n_over: f32 = 1.0 / (n as f32);
+        for grads in vecgrads {
+            gradssum = gradssum + grads
+        }
+        fmulti(gradssum, n_over)
+    }
     // Parallel forward using rayon and axis_chunks_iter
     pub fn parallel_forward(&self, input: &Array2<f32>, batch_size: usize) -> Array2<f32> {
         // Split the input into chunks along axis 0
@@ -366,14 +403,21 @@ pub fn train_mlp(
     epochs: usize,
     loss: fn(&Array2<f32>, &Array2<f32>) -> f32,
     loss_prime: fn(&Array2<f32>, &Array2<f32>) -> Array2<f32>,
+    parallel: bool,
 ) -> MLP {
     let mut mlp = mlp.clone();
     let now = std::time::Instant::now();
     let (_lol, gradients) = mlp.backprop(x, y, loss_prime);
     let mut opt = adamw_init(gradients, lr, wd, 0.9, 0.999);
     for i in 0..epochs {
-        let (_lol, gradients) = mlp.backprop(x, y, loss_prime);
+        // let (_lol, gradients) = mlp.backprop(x, y, loss_prime);
+        // let gradients = mlp.parallel_backprop(x, y, loss_prime, 32);
         // mlp = sgd(&mlp, &gradients, lr);
+        let gradients = if parallel {
+            mlp.parallel_backprop(x, y, loss_prime, 32)
+        } else {
+            mlp.backprop(x, y, loss_prime).1
+        };
         mlp = adamw(mlp, gradients, &mut opt);
         if i % 1500 == 0 {
             println!("Epoch {} ||loss: {}", i, loss(&mlp.forward(x), y));
@@ -481,6 +525,20 @@ pub fn fmap(mlp: MLPGradient, f: fn(f32) -> f32) -> MLPGradient {
         let gradient = DenseGradient {
             weights: weights.clone(),
             bias: bias.clone(),
+        };
+        layers.push(gradient);
+    }
+    MLPGradient { layers }
+}
+
+pub fn fmulti(mlp: MLPGradient, a: f32) -> MLPGradient {
+    let mut layers = Vec::new();
+    for layer in &mlp.layers {
+        let weights = &layer.weights * a;
+        let bias = &layer.bias * a;
+        let gradient = DenseGradient {
+            weights: weights,
+            bias: bias,
         };
         layers.push(gradient);
     }
