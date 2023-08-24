@@ -684,46 +684,52 @@ pub fn mlpjason2mlp(mlpj: MlpJason) -> MLP {
         &_ => none_activation_prime,
     };
     let l1w = Array2::from_shape_vec(
-        (mlpj.layer_1_weight_size[0], mlpj.layer_1_weight_size[1]),
+        //(mlpj.layer_1_weight_size[0], mlpj.layer_1_weight_size[1]),
+        (mlpj.layer_1_weight_size[1], mlpj.layer_1_weight_size[0]),
         mlpj.layer_1_weights,
     )
     .unwrap()
-    .t()
+    //.t()
     .to_owned();
     let l1b = Array2::from_shape_vec(
-        (mlpj.layer_1_bias_size[0], mlpj.layer_1_bias_size[1]),
+        //(mlpj.layer_1_bias_size[0], mlpj.layer_1_bias_size[1]),
+        (mlpj.layer_1_bias_size[1], mlpj.layer_1_bias_size[0]),
         mlpj.layer_1_bias,
     )
     .unwrap()
-    .t()
+    //.t()
     .to_owned();
     let l2w = Array2::from_shape_vec(
-        (mlpj.layer_2_weight_size[0], mlpj.layer_2_weight_size[1]),
+        // (mlpj.layer_2_weight_size[0], mlpj.layer_2_weight_size[1]),
+        (mlpj.layer_2_weight_size[1], mlpj.layer_2_weight_size[0]),
         mlpj.layer_2_weights,
     )
     .unwrap()
-    .t()
+    //.t()
     .to_owned();
     let l2b = Array2::from_shape_vec(
-        (mlpj.layer_2_bias_size[0], mlpj.layer_2_bias_size[1]),
+        //(mlpj.layer_2_bias_size[0], mlpj.layer_2_bias_size[1]),
+        (mlpj.layer_2_bias_size[1], mlpj.layer_2_bias_size[0]),
         mlpj.layer_2_bias,
     )
     .unwrap()
-    .t()
+    //.t()
     .to_owned();
     let l3w = Array2::from_shape_vec(
-        (mlpj.layer_3_weight_size[0], mlpj.layer_3_weight_size[1]),
+        //(mlpj.layer_3_weight_size[0], mlpj.layer_3_weight_size[1]),
+        (mlpj.layer_3_weight_size[1], mlpj.layer_3_weight_size[0]),
         mlpj.layer_3_weights,
     )
     .unwrap()
-    .t()
+    //.t()
     .to_owned();
     let l3b = Array2::from_shape_vec(
-        (mlpj.layer_3_bias_size[0], mlpj.layer_3_bias_size[1]),
+        //(mlpj.layer_3_bias_size[0], mlpj.layer_3_bias_size[1]),
+        (mlpj.layer_3_bias_size[1], mlpj.layer_3_bias_size[0]),
         mlpj.layer_3_bias,
     )
     .unwrap()
-    .t()
+    //.t()
     .to_owned();
     let mut layers = Vec::new();
     layers.push(Dense {

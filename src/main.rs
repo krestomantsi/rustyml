@@ -11,10 +11,10 @@ use rayon::prelude::*;
 mod utils;
 
 fn main() {
-    let latent_size = 8;
-    let activation = utils::gelu;
-    let activation_prime = utils::gelu_prime;
-    let n = 20;
+    let latent_size = 32;
+    let activation = utils::swish;
+    let activation_prime = utils::swish_prime;
+    let n = 100;
     let epochs = 30_000;
     let lr = 0.01f32;
     let wd = 0.0001f32;
@@ -61,14 +61,16 @@ fn main() {
     }
 
     // example for loading model.json with serde and making a new mlp
-    let modeljson: utils::MlpJason =
-        serde_json::from_reader(std::fs::File::open("model.json").unwrap()).unwrap();
-    let mlp2 = utils::mlpjason2mlp(modeljson);
-    println!("mlp2 {:?}", mlp2);
+    // let modeljson: utils::MlpJason =
+    //     serde_json::from_reader(std::fs::File::open("model.json").unwrap()).unwrap();
+    // let mlp = utils::mlpjason2mlp(modeljson);
+
+    // inference test
     let x02 = Array::linspace(-1.2, 1.2, 100)
         .insert_axis(Axis(1))
         .mapv(|xi| xi as f32);
-    let y02 = mlp2.forward(&x02);
+    let y02 = mlp.forward(&x02);
+
     // Plot the data as a blue line with circle markers
     // Create a new figure
     let mut fg = Figure::new();
