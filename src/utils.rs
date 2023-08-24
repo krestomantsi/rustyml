@@ -4,6 +4,7 @@ use ndarray::parallel::prelude::*;
 use ndarray::prelude::*;
 use ndarray_rand::rand_distr::{Distribution, Normal, Uniform};
 use ndarray_rand::RandomExt;
+use serde::{Deserialize, Serialize};
 
 // i want to implement a layer abstraction with a forward and backward pass
 // Implement Add for Vec<T> where T implements Add
@@ -561,7 +562,9 @@ pub fn adamw_init(grads: MLPGradient, lr: f32, lambda: f32, beta1: f32, beta2: f
 }
 
 pub fn adam(mlp: MLP, grads: MLPGradient, mut adam: &mut Adam) -> MLP {
-    let t = adam.t + 1;
+    adam.t = adam.t + 1;
+    let t = adam.t;
+
     let b: f32 = adam.beta1;
     let b2: f32 = adam.beta2;
     let b11: f32 = 1.0 - b;
@@ -599,7 +602,8 @@ pub fn adam(mlp: MLP, grads: MLPGradient, mut adam: &mut Adam) -> MLP {
 }
 
 pub fn adamw(mlp: MLP, grads: MLPGradient, mut adam: &mut Adam) -> MLP {
-    let t = adam.t + 1;
+    adam.t = adam.t + 1;
+    let t = adam.t;
     let b: f32 = adam.beta1;
     let b2: f32 = adam.beta2;
     let b11: f32 = 1.0 - b;
@@ -637,5 +641,108 @@ pub fn adamw(mlp: MLP, grads: MLPGradient, mut adam: &mut Adam) -> MLP {
         adam.v.layers[ll].bias = vb;
         layers.push(layer);
     }
+    MLP { layers }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct MlpJason {
+    pub layer_1_weights: Vec<f32>,
+    pub layer_1_weight_size: Vec<usize>,
+    pub layer_1_bias: Vec<f32>,
+    pub layer_1_bias_size: Vec<usize>,
+    pub layer_1_activation: String,
+    pub layer_1_activation_prime: String,
+    pub layer_2_weights: Vec<f32>,
+    pub layer_2_weight_size: Vec<usize>,
+    pub layer_2_bias: Vec<f32>,
+    pub layer_2_bias_size: Vec<usize>,
+    pub layer_2_activation: String,
+    pub layer_2_activation_prime: String,
+    pub layer_3_weights: Vec<f32>,
+    pub layer_3_weight_size: Vec<usize>,
+    pub layer_3_bias: Vec<f32>,
+    pub layer_3_bias_size: Vec<usize>,
+    pub layer_3_activation: String,
+    pub layer_3_activation_prime: String,
+}
+
+pub fn mlpjason2mlp(mlpj: MlpJason) -> MLP {
+    let activation = match mlpj.layer_1_activation.as_str() {
+        "relu" => relu,
+        "gelu" => gelu,
+        "leaky_relu" => leaky_relu,
+        "swish" => swish,
+        "none_activation" => none_activation,
+        &_ => none_activation,
+    };
+    let activation_prime = match mlpj.layer_1_activation_prime.as_str() {
+        "relu_prime" => relu_prime,
+        "gelu_prime" => gelu_prime,
+        "leaky_relu_prime" => leaky_relu_prime,
+        "swish_prime" => swish_prime,
+        "none_activation_prime" => none_activation_prime,
+        &_ => none_activation_prime,
+    };
+    let l1w = Array2::from_shape_vec(
+        (mlpj.layer_1_weight_size[0], mlpj.layer_1_weight_size[1]),
+        mlpj.layer_1_weights,
+    )
+    .unwrap()
+    .t()
+    .to_owned();
+    let l1b = Array2::from_shape_vec(
+        (mlpj.layer_1_bias_size[0], mlpj.layer_1_bias_size[1]),
+        mlpj.layer_1_bias,
+    )
+    .unwrap()
+    .t()
+    .to_owned();
+    let l2w = Array2::from_shape_vec(
+        (mlpj.layer_2_weight_size[0], mlpj.layer_2_weight_size[1]),
+        mlpj.layer_2_weights,
+    )
+    .unwrap()
+    .t()
+    .to_owned();
+    let l2b = Array2::from_shape_vec(
+        (mlpj.layer_2_bias_size[0], mlpj.layer_2_bias_size[1]),
+        mlpj.layer_2_bias,
+    )
+    .unwrap()
+    .t()
+    .to_owned();
+    let l3w = Array2::from_shape_vec(
+        (mlpj.layer_3_weight_size[0], mlpj.layer_3_weight_size[1]),
+        mlpj.layer_3_weights,
+    )
+    .unwrap()
+    .t()
+    .to_owned();
+    let l3b = Array2::from_shape_vec(
+        (mlpj.layer_3_bias_size[0], mlpj.layer_3_bias_size[1]),
+        mlpj.layer_3_bias,
+    )
+    .unwrap()
+    .t()
+    .to_owned();
+    let mut layers = Vec::new();
+    layers.push(Dense {
+        weights: l1w,
+        bias: l1b,
+        activation,
+        activation_prime,
+    });
+    layers.push(Dense {
+        weights: l2w,
+        bias: l2b,
+        activation,
+        activation_prime,
+    });
+    layers.push(Dense {
+        weights: l3w,
+        bias: l3b,
+        activation: none_activation,
+        activation_prime: none_activation_prime,
+    });
     MLP { layers }
 }
