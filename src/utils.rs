@@ -1,5 +1,4 @@
 use gnuplot::{Caption, Color, Figure};
-// use ndarray::iter::Windows;
 use ndarray::parallel::prelude::*;
 use ndarray::prelude::*;
 use ndarray_rand::rand_distr::{Distribution, Normal, Uniform};

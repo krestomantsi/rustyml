@@ -14,10 +14,10 @@ fn main() {
     let latent_size = 32;
     let activation = utils::swish;
     let activation_prime = utils::swish_prime;
-    let n = 100;
+    let n = 20;
     let epochs = 30_000;
     let lr = 0.01f32;
-    let wd = 0.0001f32;
+    let wd = 0.00001f32;
 
     // test backward
     // simple example for y=x^2
@@ -64,6 +64,7 @@ fn main() {
     // let modeljson: utils::MlpJason =
     //     serde_json::from_reader(std::fs::File::open("model.json").unwrap()).unwrap();
     // let mlp = utils::mlpjason2mlp(modeljson);
+    // println!("model loaded!! (comment this)");
 
     // inference test
     let x02 = Array::linspace(-1.2, 1.2, 100)
