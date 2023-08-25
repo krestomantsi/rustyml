@@ -43,15 +43,12 @@ fn main() {
         false,
     );
 
-    // let now = std::time::Instant::now();
-    // let n2 = 10000;
-    // for _ in 0..n2 {
-    //     let mut ywhy = mlp.parallel_forward(&x0, 32);
-    // }
-    // println!(
-    //     "Time for parallel forward pass {:?}",
-    //     now.elapsed() / (n2 as u32)
-    // );
+    let now = std::time::Instant::now();
+    let n2 = 1000;
+    for _ in 0..n2 {
+        let mut ywhy = mlp.forward(&x0);
+    }
+    println!("Time for forward pass {:?}", now.elapsed() / (n2 as u32));
     let mut ind = 0;
     for ll in &mlp.layers {
         println!("layer {}", ind);
