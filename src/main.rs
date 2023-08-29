@@ -12,8 +12,8 @@ mod utils;
 
 fn main() {
     let latent_size = 32;
-    let activation = utils::swish;
-    let activation_prime = utils::swish_prime;
+    let activation = utils::relu;
+    let activation_prime = utils::relu_prime;
     let n = 20;
     let epochs = 30_000;
     let lr = 0.01f32;
@@ -83,4 +83,16 @@ fn main() {
         .expect("Unable to save plot");
     println!("Plot saved");
     // fg.show().expect("Unable to show plot");
+
+    // plot function basis created by the mlp
+    println!("{:?}", _lol[2]);
+    let mut fg = Figure::new();
+    let ax = fg
+        .axes2d()
+        .lines(&x0, &_lol[2].t(), &[Caption("model"), Color("red")]);
+    ax.set_grid_options(true, &[LineStyle(DotDotDash), Color("black")])
+        .set_x_grid(true)
+        .set_y_grid(true);
+    fg.save_to_png("plot2.png", 800, 600)
+        .expect("Unable to save plot");
 }
