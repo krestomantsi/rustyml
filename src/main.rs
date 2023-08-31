@@ -12,9 +12,9 @@ mod utils;
 
 fn main() {
     let latent_size = 32;
-    let activation = utils::relu;
-    let activation_prime = utils::relu_prime;
-    let n = 20;
+    let activation = utils::swish;
+    let activation_prime = utils::swish_prime;
+    let n = 10000;
     let epochs = 30_000;
     let lr = 0.01f32;
     let wd = 0.00001f32;
@@ -40,7 +40,7 @@ fn main() {
         epochs,
         utils::mse,
         utils::mse_prime,
-        false,
+        true,
     );
 
     let now = std::time::Instant::now();
