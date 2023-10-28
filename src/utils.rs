@@ -36,19 +36,41 @@ pub struct DenseGradient {
 
 #[derive(Clone, Debug)]
 pub struct LayerNorm {
-    pub weights: Array2<f32>,
-    pub bias: Array2<f32>,
+    pub eps: f32,
+}
+
+#[derive(Clone, Debug)]
+pub struct Normalisation {
+    pub eps: f32,
+    pub mean: Array2<f32>,
+    pub std: Array2<f32>,
+}
+
+#[derive(Clone, Debug)]
+pub struct NormalisationGradient {}
+
+#[derive(Clone, Debug)]
+pub struct LayerNormGradient {}
+
+#[derive(Clone, Debug)]
+enum Layer {
+    Normalisation,
+    Layernorm,
+    Dense,
+    DensenoBias,
+}
+
+#[derive(Clone, Debug)]
+enum LayerGradient {
+    NormalisationGradient,
+    LayernormGradient,
+    DenseGradient,
+    DensenoBiasGradient,
 }
 
 #[derive(Clone, Debug)]
 pub struct MLP {
-    pub layers: Vec<Dense>,
-}
-
-#[derive(Clone, Debug)]
-pub struct MLPLayerNorm {
-    pub layers: Vec<Dense>,
-    pub layernorm: LayerNorm,
+    pub layers: Vec<Layer>,
 }
 
 // implement add for Vec<DenseGradient>
