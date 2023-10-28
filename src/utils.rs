@@ -73,24 +73,9 @@ pub struct MLP {
     pub layers: Vec<Layer>,
 }
 
-// implement add for Vec<DenseGradient>
-impl core::ops::Add for MLPGradient {
-    type Output = Self;
-    fn add(self, other: Self) -> Self {
-        let mut layers = Vec::new();
-        for i in 0..self.layers.len() {
-            let weights = &self.layers[i].weights + &other.layers[i].weights;
-            let bias = &self.layers[i].bias + &other.layers[i].bias;
-            let gradient = DenseGradient { weights, bias };
-            layers.push(gradient);
-        }
-        MLPGradient { layers }
-    }
-}
-
 #[derive(Clone, Debug)]
 pub struct MLPGradient {
-    pub layers: Vec<DenseGradient>,
+    pub layers: Vec<LayerGradient>,
 }
 
 // relu on f32
@@ -245,6 +230,54 @@ impl Dense {
         let pullback = dz.dot(&self.weights.t());
         let gradient = DenseGradient { weights, bias };
         (pullback, gradient)
+    }
+}
+impl DensenoBias {
+    pub fn forward(&self, input: &Array2<f32>) -> Array2<f32> {
+        (self.activation)(&(&input.dot(&self.weights)))
+    }
+    pub fn backward(
+        &self,
+        input: &Array2<f32>,
+        output: &Array2<f32>,
+        pullback: &Array2<f32>,
+    ) -> (Array2<f32>, DensenoBiasGradient) {
+        // let m = input.shape()[0];
+        let dz = pullback * (self.activation_prime)(output);
+        let weights = input.t().dot(&dz);
+        let pullback = dz.dot(&self.weights.t());
+        let gradient = DensenoBiasGradient { weights };
+        (pullback, gradient)
+    }
+}
+
+impl Normalisation {
+    pub fn forward(&self, input: &Array2<f32>) -> Array2<f32> {
+        let xmean = self.mean.broadcast(&input.shape()).unwrap();
+        let xstd = self.std.broadcast(&input.shape()).unwrap();
+        let eps = self.eps;
+        return (input - xmean) / (xstd + eps);
+    }
+
+    pub fn backward(
+        &self,
+        input: &Array2<f32>,
+        output: &Array2<f32>,
+        pullback: &Array2<f32>,
+    ) -> (Array2<f32>, NormalisationGradient) {
+        return (pullback, NormalisationGradient {});
+    }
+}
+
+impl LayerNorm {
+    pub fn forward(&self, input: &Array2<f32>) -> Array2<f32> {}
+    pub fn backward(
+        &self,
+        input: &Array2<f32>,
+        output: &Array2<f32>,
+        pullback: &Array2<f32>,
+    ) -> (Array2<f32>, LayerNormGradient) {
+        return (pullback, LayerNormGradient {});
     }
 }
 
