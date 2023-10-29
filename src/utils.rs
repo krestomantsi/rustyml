@@ -5,9 +5,6 @@ use ndarray_rand::rand_distr::{Distribution, Normal, Uniform};
 use ndarray_rand::RandomExt;
 use serde::{Deserialize, Serialize};
 
-// i want to implement a layer abstraction with a forward and backward pass
-// Implement Add for Vec<T> where T implements Add
-
 #[derive(Clone, Debug)]
 pub struct Dense {
     pub weights: Array2<f32>,
@@ -253,10 +250,11 @@ impl DensenoBias {
 
 impl Normalisation {
     pub fn forward(&self, input: &Array2<f32>) -> Array2<f32> {
-        let xmean = self.clone().mean.broadcast(input.shape()).unwrap();
-        let xstd = self.std.broadcast(input.shape()).unwrap();
+        let xmean = &self.mean.broadcast(input.shape()).unwrap();
+        let xstd = &self.std.broadcast(input.shape()).unwrap();
         let eps = self.eps;
-        return (input - xmean) / (xstd + eps);
+        let result = (input - xmean) / (xstd + eps);
+        return result.into_dimensionality::<Dim<[usize; 2]>>().unwrap();
     }
 
     pub fn backward(
@@ -270,7 +268,9 @@ impl Normalisation {
 }
 
 impl LayerNorm {
-    pub fn forward(&self, input: &Array2<f32>) -> Array2<f32> {}
+    pub fn forward(&self, input: &Array2<f32>) -> Array2<f32> {
+        return input.to_owned();
+    }
     pub fn backward(
         &self,
         input: &Array2<f32>,
