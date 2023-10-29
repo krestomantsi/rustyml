@@ -253,8 +253,8 @@ impl DensenoBias {
 
 impl Normalisation {
     pub fn forward(&self, input: &Array2<f32>) -> Array2<f32> {
-        let xmean = self.mean.broadcast(&input.shape()).unwrap();
-        let xstd = self.std.broadcast(&input.shape()).unwrap();
+        let xmean = self.clone().mean.broadcast(input.shape()).unwrap();
+        let xstd = self.std.broadcast(input.shape()).unwrap();
         let eps = self.eps;
         return (input - xmean) / (xstd + eps);
     }
@@ -265,7 +265,7 @@ impl Normalisation {
         output: &Array2<f32>,
         pullback: &Array2<f32>,
     ) -> (Array2<f32>, NormalisationGradient) {
-        return (pullback, NormalisationGradient {});
+        return (pullback.clone(), NormalisationGradient {});
     }
 }
 
@@ -277,7 +277,7 @@ impl LayerNorm {
         output: &Array2<f32>,
         pullback: &Array2<f32>,
     ) -> (Array2<f32>, LayerNormGradient) {
-        return (pullback, LayerNormGradient {});
+        return (pullback.clone(), LayerNormGradient {});
     }
 }
 
