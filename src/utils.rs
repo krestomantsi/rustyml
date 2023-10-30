@@ -302,19 +302,19 @@ pub fn create_mlp(
         .mapv(|xi| xi / ((latent_size as f32).sqrt()));
     let bias3 = Array2::zeros((1, output_size));
 
-    layers.push(Dense {
+    layers.push(Layer::Dense {
         weights: weights1,
         bias: bias1,
         activation,
         activation_prime,
     });
-    layers.push(Dense {
+    layers.push(Layer::Dense {
         weights: weights2,
         bias: bias2,
         activation,
         activation_prime,
     });
-    layers.push(Dense {
+    layers.push(Layer::Dense {
         weights: weights3,
         bias: bias3,
         activation: none_activation,
