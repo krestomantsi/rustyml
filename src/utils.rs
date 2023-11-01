@@ -283,19 +283,19 @@ impl Layer {
             } => (activation)(&(input.dot(weights))),
         }
     }
-    // pub fn backward(
-    //     &self,
-    //     input: &Array2<f32>,
-    //     output: &Array2<f32>,
-    //     pullback: &Array2<f32>,
-    // ) -> (Array2<f32>, LayerGradient) {
-    //     match self {
-    //         Normalisation => self.backward(input, output, pullback),
-    //         Layernorm => self.backward(input, output, pullback),
-    //         Dense => self.backward(input, output, pullback),
-    //         DensenoBias => self.backward(input, output, pullback),
-    //     }
-    // }
+    pub fn backward(
+        &self,
+        input: &Array2<f32>,
+        output: &Array2<f32>,
+        pullback: &Array2<f32>,
+    ) -> (Array2<f32>, LayerGradient) {
+        match self {
+            Normalisation => self.backward(input, output, pullback),
+            Layernorm => self.backward(input, output, pullback),
+            Dense => self.backward(input, output, pullback),
+            DensenoBias => self.backward(input, output, pullback),
+        }
+    }
 }
 
 pub fn create_mlp(
