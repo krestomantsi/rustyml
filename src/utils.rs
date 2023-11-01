@@ -290,10 +290,36 @@ impl Layer {
         pullback: &Array2<f32>,
     ) -> (Array2<f32>, LayerGradient) {
         match self {
-            Normalisation => self.backward(input, output, pullback),
-            Layernorm => self.backward(input, output, pullback),
-            Dense => self.backward(input, output, pullback),
-            DensenoBias => self.backward(input, output, pullback),
+            Layer::Normalisation { eps, mean, std } => {
+                return (pullback.clone(), LayerGradient::NormalisationGradient {});
+            }
+            Layer::Layernorm { eps } => {
+                return (pullback.clone(), LayerGradient::LayernormGradient {});
+            }
+            Layer::Dense {
+                weights,
+                bias,
+                activation,
+                activation_prime,
+            } => {
+                let dz = pullback * (activation_prime)(output);
+                let bias = dz.clone().sum_axis(Axis(0)).insert_axis(Axis(0));
+                let weights = input.t().dot(&dz);
+                let pullback = dz.dot(&weights.t());
+                let gradient = LayerGradient::DenseGradient { weights, bias };
+                (pullback, gradient)
+            }
+            Layer::DensenoBias {
+                weights,
+                activation,
+                activation_prime,
+            } => {
+                let dz = pullback * (activation_prime)(output);
+                let weights = input.t().dot(&dz);
+                let pullback = dz.dot(&weights.t());
+                let gradient = LayerGradient::DensenoBiasGradient { weights };
+                (pullback, gradient)
+            }
         }
     }
 }
@@ -340,105 +366,105 @@ pub fn create_mlp(
     MLP { layers }
 }
 
-// impl MLP {
-//     pub fn forward(&self, input: &Array2<f32>) -> Array2<f32> {
-//         let mut output = input.clone();
-//         for layer in &self.layers {
-//             output = layer.forward(&output);
-//         }
-//         output
-//     }
-//     pub fn pullback(&self, x: &Array2<f32>, pullback: &Array2<f32>) -> MLPGradient {
-//         let mut gradients = Vec::new();
-//         let mut outputs = Vec::new();
-//         outputs.push(x.clone());
-//         let mut output = x.clone();
-//         for layer in &self.layers {
-//             output = layer.forward(&output);
-//             outputs.push(output.clone());
-//         }
-//         let mut pullback = pullback.clone();
-//         for i in (1..self.layers.len() + 1).rev() {
-//             let (pullback_, gradient) =
-//                 self.layers[i - 1].backward(&outputs[i - 1], &outputs[i], &pullback);
-//             pullback = pullback_;
-//             gradients.push(gradient);
-//         }
-//         gradients.reverse();
-//         MLPGradient { layers: gradients }
-//     }
-//     pub fn backprop(
-//         &self,
-//         x: &Array2<f32>,
-//         target: &Array2<f32>,
-//         loss_prime: fn(&Array2<f32>, &Array2<f32>) -> Array2<f32>,
-//     ) -> (Vec<Array2<f32>>, MLPGradient) {
-//         let mut gradients = Vec::new();
-//         let mut outputs = Vec::new();
-//         outputs.push(x.clone());
-//         let mut output = x.clone();
-//         for layer in &self.layers {
-//             output = layer.forward(&output);
-//             outputs.push(output.clone());
-//         }
-//         let mut pullback = loss_prime(&outputs[outputs.len() - 1], target);
-//         for i in (1..self.layers.len() + 1).rev() {
-//             let (pullback_, gradient) =
-//                 self.layers[i - 1].backward(&outputs[i - 1], &outputs[i], &pullback);
-//             pullback = pullback_;
-//             gradients.push(gradient);
-//         }
-//         gradients.reverse();
-//         (outputs, MLPGradient { layers: gradients })
-//     }
-// pub fn parallel_backprop(
-//     &self,
-//     x0: &Array2<f32>,
-//     y0: &Array2<f32>,
-//     loss_prime: fn(&Array2<f32>, &Array2<f32>) -> Array2<f32>,
-//     batch_size: usize,
-// ) -> MLPGradient {
-//     // parallel chunks
-//     let chunks = x0
-//         .axis_chunks_iter(Axis(0), batch_size)
-//         .into_par_iter()
-//         .zip(y0.axis_chunks_iter(Axis(0), batch_size).into_par_iter());
-//     let parchunks = chunks;
-//     // parallel call and dump into a vec
-//     let vecgrads: Vec<MLPGradient> = parchunks
-//         .map(|(xx, yy)| self.backprop(&xx.to_owned(), &yy.to_owned(), loss_prime).1)
-//         .collect();
-//     // take the mean
-//     let mut gradssum = fmap(vecgrads[0].clone(), |_| 0.0 as f32);
-//     let n = vecgrads.len();
-//     let n_over: f32 = 1.0 / (n as f32);
-//     for grads in vecgrads {
-//         gradssum = gradssum + grads
-//     }
-//     fmulti(gradssum, n_over)
-// }
-// Parallel forward using rayon and axis_chunks_iter
-//     pub fn parallel_forward(&self, input: &Array2<f32>, batch_size: usize) -> Array2<f32> {
-//         // Split the input into chunks along axis 0
-//         let chunks = input.axis_chunks_iter(Axis(0), batch_size);
+impl MLP {
+    pub fn forward(&self, input: &Array2<f32>) -> Array2<f32> {
+        let mut output = input.clone();
+        for layer in &self.layers {
+            output = layer.forward(&output);
+        }
+        output
+    }
+    pub fn pullback(&self, x: &Array2<f32>, pullback: &Array2<f32>) -> MLPGradient {
+        let mut gradients = Vec::new();
+        let mut outputs = Vec::new();
+        outputs.push(x.clone());
+        let mut output = x.clone();
+        for layer in &self.layers {
+            output = layer.forward(&output);
+            outputs.push(output.clone());
+        }
+        let mut pullback = pullback.clone();
+        for i in (1..self.layers.len() + 1).rev() {
+            let (pullback_, gradient) =
+                self.layers[i - 1].backward(&outputs[i - 1], &outputs[i], &pullback);
+            pullback = pullback_;
+            gradients.push(gradient);
+        }
+        gradients.reverse();
+        MLPGradient { layers: gradients }
+    }
+    pub fn backprop(
+        &self,
+        x: &Array2<f32>,
+        target: &Array2<f32>,
+        loss_prime: fn(&Array2<f32>, &Array2<f32>) -> Array2<f32>,
+    ) -> (Vec<Array2<f32>>, MLPGradient) {
+        let mut gradients = Vec::new();
+        let mut outputs = Vec::new();
+        outputs.push(x.clone());
+        let mut output = x.clone();
+        for layer in &self.layers {
+            output = layer.forward(&output);
+            outputs.push(output.clone());
+        }
+        let mut pullback = loss_prime(&outputs[outputs.len() - 1], target);
+        for i in (1..self.layers.len() + 1).rev() {
+            let (pullback_, gradient) =
+                self.layers[i - 1].backward(&outputs[i - 1], &outputs[i], &pullback);
+            pullback = pullback_;
+            gradients.push(gradient);
+        }
+        gradients.reverse();
+        (outputs, MLPGradient { layers: gradients })
+    }
+    // pub fn parallel_backprop(
+    //     &self,
+    //     x0: &Array2<f32>,
+    //     y0: &Array2<f32>,
+    //     loss_prime: fn(&Array2<f32>, &Array2<f32>) -> Array2<f32>,
+    //     batch_size: usize,
+    // ) -> MLPGradient {
+    //     // parallel chunks
+    //     let chunks = x0
+    //         .axis_chunks_iter(Axis(0), batch_size)
+    //         .into_par_iter()
+    //         .zip(y0.axis_chunks_iter(Axis(0), batch_size).into_par_iter());
+    //     let parchunks = chunks;
+    //     // parallel call and dump into a vec
+    //     let vecgrads: Vec<MLPGradient> = parchunks
+    //         .map(|(xx, yy)| self.backprop(&xx.to_owned(), &yy.to_owned(), loss_prime).1)
+    //         .collect();
+    //     // take the mean
+    //     let mut gradssum = fmap(vecgrads[0].clone(), |_| 0.0 as f32);
+    //     let n = vecgrads.len();
+    //     let n_over: f32 = 1.0 / (n as f32);
+    //     for grads in vecgrads {
+    //         gradssum = gradssum + grads
+    //     }
+    //     fmulti(gradssum, n_over)
+    // }
+    // Parallel forward using rayon and axis_chunks_iter
+    pub fn parallel_forward(&self, input: &Array2<f32>, batch_size: usize) -> Array2<f32> {
+        // Split the input into chunks along axis 0
+        let chunks = input.axis_chunks_iter(Axis(0), batch_size);
 
-//         // Convert the iterator into a parallel iterator
-//         let par_chunks = chunks.into_par_iter();
+        // Convert the iterator into a parallel iterator
+        let par_chunks = chunks.into_par_iter();
 
-//         // Apply the forward function to each chunk in parallel
-//         let outputs: Vec<Array2<f32>> = par_chunks
-//             .map(|chunk| self.forward(&chunk.to_owned()))
-//             .collect();
+        // Apply the forward function to each chunk in parallel
+        let outputs: Vec<Array2<f32>> = par_chunks
+            .map(|chunk| self.forward(&chunk.to_owned()))
+            .collect();
 
-//         // Stack the outputs along axis 0
-//         let output = ndarray::concatenate(
-//             Axis(0),
-//             &outputs.iter().map(|x| x.view()).collect::<Vec<_>>(),
-//         )
-//         .unwrap();
-//         output
-//     }
-// }
+        // Stack the outputs along axis 0
+        let output = ndarray::concatenate(
+            Axis(0),
+            &outputs.iter().map(|x| x.view()).collect::<Vec<_>>(),
+        )
+        .unwrap();
+        output
+    }
+}
 
 #[allow(dead_code)]
 pub fn create_mlp_det(
@@ -476,4 +502,24 @@ pub fn create_mlp_det(
         activation_prime: none_activation_prime,
     });
     MLP { layers }
+}
+
+#[inline]
+pub fn fmap(mlp: MLPGradient, f: fn(f32) -> f32) -> MLPGradient {
+    let mut layers = Vec::new();
+    for layer in &mlp.layers {
+        match layer {
+            LayerGradient::NormalisationGradient {} => {
+                layers.push(LayerGradient::NormalisationGradient)
+            }
+            LayerGradient::LayernormGradient {} => layers.push(LayerGradient::LayernormGradient),
+            LayerGradient::DenseGradient { weights, bias } => {
+                let weights = &weights.mapv(f);
+                let bias = &bias.mapv(f);
+                let gradient = LayerGradient::DenseGradient { weights.clone() , bias.clone()};           };
+                layers.push(gradient);
+            }
+        }
+    }
+    MLPGradient { layers }
 }

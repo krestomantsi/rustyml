@@ -29,8 +29,9 @@ fn main() {
     // let y0 = x0.mapv(|xi| xi * xi * xi);
 
     let mut mlp = utils::create_mlp(1, latent_size, 1, activation, activation_prime);
-    println!("{:?}", mlp);
+    // println!("{:?}", mlp);
     // let (_lol, gradients) = mlp.backprop(&x0, &y0, utils::mse_prime);
+    // println!("{:?}", gradients);
 
     // let mlp = utils::train_mlp(
     //     &mut mlp,
