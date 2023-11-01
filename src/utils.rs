@@ -516,7 +516,7 @@ pub fn fmap(mlp: MLPGradient, f: fn(f32) -> f32) -> MLPGradient {
             LayerGradient::DenseGradient { weights, bias } => {
                 let weights = &weights.mapv(f);
                 let bias = &bias.mapv(f);
-                let gradient = LayerGradient::DenseGradient { weights.clone() , bias.clone()};           };
+                let gradient = LayerGradient::DenseGradient { weights.clone() , bias.clone()};
                 layers.push(gradient);
             }
         }
