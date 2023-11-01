@@ -29,33 +29,34 @@ fn main() {
     // let y0 = x0.mapv(|xi| xi * xi * xi);
 
     let mut mlp = utils::create_mlp(1, latent_size, 1, activation, activation_prime);
-    let (_lol, gradients) = mlp.backprop(&x0, &y0, utils::mse_prime);
+    println!("{:?}", mlp);
+    // let (_lol, gradients) = mlp.backprop(&x0, &y0, utils::mse_prime);
 
-    let mlp = utils::train_mlp(
-        &mut mlp,
-        &x0,
-        &y0,
-        lr,
-        wd,
-        epochs,
-        utils::mse,
-        utils::mse_prime,
-        false,
-    );
+    // let mlp = utils::train_mlp(
+    //     &mut mlp,
+    //     &x0,
+    //     &y0,
+    //     lr,
+    //     wd,
+    //     epochs,
+    //     utils::mse,
+    //     utils::mse_prime,
+    //     false,
+    // );
 
-    let now = std::time::Instant::now();
-    let n2 = 1000;
-    for _ in 0..n2 {
-        let mut ywhy = mlp.forward(&x0);
-    }
-    println!("Time for forward pass {:?}", now.elapsed() / (n2 as u32));
-    let mut ind = 0;
-    for ll in &mlp.layers {
-        println!("layer {}", ind);
-        println!("weights {:?}", ll.weights.clone().shape());
-        println!("bias {:?}", ll.bias.clone().shape());
-        ind += 1;
-    }
+    // let now = std::time::Instant::now();
+    // let n2 = 1000;
+    // for _ in 0..n2 {
+    //     let mut ywhy = mlp.forward(&x0);
+    // }
+    // println!("Time for forward pass {:?}", now.elapsed() / (n2 as u32));
+    // let mut ind = 0;
+    // for ll in &mlp.layers {
+    //     println!("layer {}", ind);
+    //     println!("weights {:?}", ll.weights.clone().shape());
+    //     println!("bias {:?}", ll.bias.clone().shape());
+    //     ind += 1;
+    // }
 
     // example for loading model.json with serde and making a new mlp
     // let modeljson: utils::MlpJason =
@@ -64,23 +65,23 @@ fn main() {
     // println!("model loaded!! (comment this)");
 
     // inference test
-    let x02 = Array::linspace(-1.2, 1.2, 100)
-        .insert_axis(Axis(1))
-        .mapv(|xi| xi as f32);
-    let y02 = mlp.forward(&x02);
+    // let x02 = Array::linspace(-1.2, 1.2, 100)
+    //     .insert_axis(Axis(1))
+    //     .mapv(|xi| xi as f32);
+    // let y02 = mlp.forward(&x02);
 
     // Plot the data as a blue line with circle markers
     // Create a new figure
-    let mut fg = Figure::new();
-    let ax = fg
-        .axes2d()
-        .lines(&x02, &y02, &[Caption("model"), Color("red")])
-        .points(&x0, &y0, &[Caption("data"), Color("blue")]);
-    ax.set_grid_options(true, &[LineStyle(DotDotDash), Color("black")])
-        .set_x_grid(true)
-        .set_y_grid(true);
-    fg.save_to_png("plot.png", 800, 600)
-        .expect("Unable to save plot");
-    println!("Plot saved");
+    // let mut fg = Figure::new();
+    // let ax = fg
+    //     .axes2d()
+    //     .lines(&x02, &y02, &[Caption("model"), Color("red")])
+    //     .points(&x0, &y0, &[Caption("data"), Color("blue")]);
+    // ax.set_grid_options(true, &[LineStyle(DotDotDash), Color("black")])
+    //     .set_x_grid(true)
+    //     .set_y_grid(true);
+    // fg.save_to_png("plot.png", 800, 600)
+    //     .expect("Unable to save plot");
+    // println!("Plot saved");
     // fg.show().expect("Unable to show plot");
 }
