@@ -6,63 +6,19 @@ use ndarray_rand::RandomExt;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug)]
-pub struct Dense {
-    pub weights: Array2<f32>,
-    pub bias: Array2<f32>,
-    pub activation: fn(&Array2<f32>) -> Array2<f32>,
-    pub activation_prime: fn(&Array2<f32>) -> Array2<f32>,
-}
-
-#[derive(Clone, Debug)]
-pub struct DensenoBias {
-    pub weights: Array2<f32>,
-    pub activation: fn(&Array2<f32>) -> Array2<f32>,
-    pub activation_prime: fn(&Array2<f32>) -> Array2<f32>,
-}
-
-#[derive(Clone, Debug)]
-pub struct DensenoBiasGradient {
-    pub weights: Array2<f32>,
-}
-
-#[derive(Clone, Debug)]
-pub struct DenseGradient {
-    pub weights: Array2<f32>,
-    pub bias: Array2<f32>,
-}
-
-#[derive(Clone, Debug)]
-pub struct LayerNorm {
-    pub eps: f32,
-}
-
-#[derive(Clone, Debug)]
-pub struct Normalisation {
-    pub eps: f32,
-    pub mean: Array2<f32>,
-    pub std: Array2<f32>,
-}
-
-#[derive(Clone, Debug)]
-pub struct NormalisationGradient {}
-
-#[derive(Clone, Debug)]
-pub struct LayerNormGradient {}
-
-#[derive(Clone, Debug)]
 enum Layer {
-    Normalisation,
-    Layernorm,
-    Dense,
-    DensenoBias,
+    Normalisation {eps: f32,mean: Array2<f32>,std:Array2<f32>},
+    Layernorm {eps},
+    Dense {weights:Array2<f32>,bias:Array2<f32>,activation:fn(&Array2<f32>)->Array2<f32>,activation_prime: fn(&Array2<f32>)->Array2<f32>},
+    DensenoBias{weights:Array2<f32>,activation:fn(&Array2<f32>)->Array2<f32>,activation_prime: fn(&Array2<f32>)->Array2<f32>},
 }
 
 #[derive(Clone, Debug)]
 enum LayerGradient {
     NormalisationGradient,
     LayernormGradient,
-    DenseGradient,
-    DensenoBiasGradient,
+    DenseGradient{weights:Array2<f32>,bias:Array2<f32>},
+    DensenoBiasGradient{weights:Array2<f32>},
 }
 
 #[derive(Clone, Debug)]
