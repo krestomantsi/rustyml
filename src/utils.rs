@@ -27,10 +27,6 @@ enum Layer {
         activation: fn(&Array2<f32>) -> Array2<f32>,
         activation_prime: fn(&Array2<f32>) -> Array2<f32>,
     },
-}
-
-#[derive(Clone, Debug)]
-enum LayerGradient {
     NormalisationGradient,
     LayernormGradient,
     DenseGradient {
@@ -45,11 +41,6 @@ enum LayerGradient {
 #[derive(Clone, Debug)]
 pub struct MLP {
     pub layers: Vec<Layer>,
-}
-
-#[derive(Clone, Debug)]
-pub struct MLPGradient {
-    pub layers: Vec<LayerGradient>,
 }
 
 // relu on f32
@@ -186,33 +177,6 @@ pub fn none_activation_prime(x: &Array2<f32>) -> Array2<f32> {
     Array2::<f32>::ones(x.raw_dim())
 }
 
-// implement mul for layer
-impl core::ops::Mul<f32> for LayerGradient {
-    type Output = Self;
-    fn mul(self, scalar: f32) -> Self {
-        match self {
-            LayerGradient::NormalisationGradient {} => {
-                return LayerGradient::NormalisationGradient {};
-            }
-            LayerGradient::LayernormGradient {} => {
-                return LayerGradient::NormalisationGradient {};
-            }
-            LayerGradient::DenseGradient { weights, bias } => {
-                let weights = scalar * weights;
-                let bias = scalar * bias;
-                return LayerGradient::DenseGradient {
-                    weights: weights,
-                    bias: bias,
-                };
-            }
-            LayerGradient::DensenoBiasGradient { weights } => {
-                let weights = scalar * weights;
-                return LayerGradient::DensenoBiasGradient { weights: weights };
-            }
-        }
-    }
-}
-
 impl core::ops::Mul<f32> for Layer {
     type Output = Self;
     fn mul(self, scalar: f32) -> Self {
@@ -254,182 +218,87 @@ impl core::ops::Mul<f32> for Layer {
                     activation_prime: activation_prime,
                 };
             }
+            Layer::NormalisationGradient => {
+                return Layer::NormalisationGradient;
+            }
+            Layer::LayernormGradient => {
+                return Layer::LayernormGradient;
+            }
+            Layer::DenseGradient { weights, bias } => {
+                let weights = scalar * weights;
+                let bias = scalar * bias;
+                return Layer::DenseGradient {
+                    weights: weights,
+                    bias: bias,
+                };
+            }
+            Layer::DensenoBiasGradient { weights } => {
+                let weights = scalar * weights;
+                return Layer::DensenoBiasGradient { weights: weights };
+            }
         }
     }
 }
 
-impl core::ops::Add<f32> for LayerGradient {
+impl core::ops::Add<f32> for Layer {
     type Output = Self;
     fn add(self, scalar: f32) -> Self {
         match self {
-            LayerGradient::NormalisationGradient {} => {
-                return LayerGradient::NormalisationGradient {};
+            Layer::Normalisation { eps, mean, std } => {
+                return Layer::Normalisation {
+                    eps: eps,
+                    mean: mean,
+                    std: std,
+                };
             }
-            LayerGradient::LayernormGradient {} => {
-                return LayerGradient::NormalisationGradient {};
+            Layer::Layernorm { eps } => {
+                return Layer::Layernorm { eps: eps };
             }
-            LayerGradient::DenseGradient { weights, bias } => {
+            Layer::Dense {
+                weights,
+                bias,
+                activation,
+                activation_prime,
+            } => {
                 let weights = scalar + weights;
                 let bias = scalar + bias;
-                return LayerGradient::DenseGradient {
-                    weights: weights,
-                    bias: bias,
-                };
-            }
-            LayerGradient::DensenoBiasGradient { weights } => {
-                let weights = scalar + weights;
-                return LayerGradient::DensenoBiasGradient { weights: weights };
-            }
-        }
-    }
-}
-
-impl core::ops::Add for LayerGradient {
-    type Output = Self;
-    fn add(self, other: Self) -> Self {
-        match (self, other) {
-            (LayerGradient::NormalisationGradient {}, LayerGradient::NormalisationGradient {}) => {
-                return LayerGradient::NormalisationGradient {};
-            }
-            (LayerGradient::LayernormGradient {}, LayerGradient::LayernormGradient {}) => {
-                return LayerGradient::LayernormGradient {};
-            }
-            (
-                LayerGradient::DenseGradient {
-                    weights: weights1,
-                    bias: bias1,
-                },
-                LayerGradient::DenseGradient {
-                    weights: weights2,
-                    bias: bias2,
-                },
-            ) => {
-                let weights = weights1 + weights2;
-                let bias = bias1 + bias2;
-                return LayerGradient::DenseGradient {
-                    weights: weights,
-                    bias: bias,
-                };
-            }
-            (
-                LayerGradient::DensenoBiasGradient { weights: weights1 },
-                LayerGradient::DensenoBiasGradient { weights: weights2 },
-            ) => {
-                let weights = weights1 + weights2;
-                return LayerGradient::DensenoBiasGradient { weights: weights };
-            }
-            _ => panic!("You cannot add different layers!"),
-        }
-    }
-}
-
-impl core::ops::Add for Layer {
-    type Output = Self;
-    fn add(self, other: Self) -> Self {
-        match (self, other) {
-            (
-                Layer::Normalisation {
-                    eps: eps1,
-                    mean: mean1,
-                    std: std1,
-                },
-                Layer::Normalisation {
-                    eps: eps2,
-                    mean: mean2,
-                    std: std2,
-                },
-            ) => {
-                return Layer::Normalisation {
-                    eps: eps1,
-                    mean: mean1,
-                    std: std1,
-                };
-            }
-            (Layer::Layernorm { eps: eps1 }, Layer::Layernorm { eps: eps2 }) => {
-                return Layer::Layernorm { eps: eps1 };
-            }
-            (
-                Layer::Dense {
-                    weights: weights1,
-                    bias: bias1,
-                    activation: activation1,
-                    activation_prime: activation_prime1,
-                },
-                Layer::Dense {
-                    weights: weights2,
-                    bias: bias2,
-                    activation: activation2,
-                    activation_prime: activation_prime2,
-                },
-            ) => {
-                let weights = weights1 + weights2;
-                let bias = bias1 + bias2;
                 return Layer::Dense {
                     weights: weights,
                     bias: bias,
-                    activation: activation1,
-                    activation_prime: activation_prime1,
+                    activation: activation,
+                    activation_prime: activation_prime,
                 };
             }
-            (
-                Layer::DensenoBias {
-                    weights: weights1,
-                    activation: activation1,
-                    activation_prime: activation_prime1,
-                },
-                Layer::DensenoBias {
-                    weights: weights2,
-                    activation: activation2,
-                    activation_prime: activation_prime2,
-                },
-            ) => {
-                let weights = weights1 + weights2;
+            Layer::DensenoBias {
+                weights,
+                activation,
+                activation_prime,
+            } => {
+                let weights = scalar + weights;
                 return Layer::DensenoBias {
                     weights: weights,
-                    activation: activation1,
-                    activation_prime: activation_prime1,
+                    activation: activation,
+                    activation_prime: activation_prime,
                 };
             }
-            _ => panic!("You cannot add different layers!"),
-        }
-    }
-}
-
-impl core::ops::Div for LayerGradient {
-    type Output = Self;
-    fn div(self, other: Self) -> Self {
-        match (self, other) {
-            (LayerGradient::NormalisationGradient {}, LayerGradient::NormalisationGradient {}) => {
-                return LayerGradient::NormalisationGradient {};
+            Layer::NormalisationGradient => {
+                return Layer::NormalisationGradient;
             }
-            (LayerGradient::LayernormGradient {}, LayerGradient::LayernormGradient {}) => {
-                return LayerGradient::LayernormGradient {};
+            Layer::LayernormGradient => {
+                return Layer::LayernormGradient;
             }
-            (
-                LayerGradient::DenseGradient {
-                    weights: weights1,
-                    bias: bias1,
-                },
-                LayerGradient::DenseGradient {
-                    weights: weights2,
-                    bias: bias2,
-                },
-            ) => {
-                let weights = weights1 + weights2;
-                let bias = bias1 + bias2;
-                return LayerGradient::DenseGradient {
+            Layer::DenseGradient { weights, bias } => {
+                let weights = scalar + weights;
+                let bias = scalar + bias;
+                return Layer::DenseGradient {
                     weights: weights,
                     bias: bias,
                 };
             }
-            (
-                LayerGradient::DensenoBiasGradient { weights: weights1 },
-                LayerGradient::DensenoBiasGradient { weights: weights2 },
-            ) => {
-                let weights = weights1 + weights2;
-                return LayerGradient::DensenoBiasGradient { weights: weights };
+            Layer::DensenoBiasGradient { weights } => {
+                let weights = scalar + weights;
+                return Layer::DensenoBiasGradient { weights: weights };
             }
-            _ => panic!("You cannot add different layers!"),
         }
     }
 }
@@ -441,6 +310,7 @@ trait AddLayer {
 trait AddMLP {
     fn add_mlp(self, other: MLPGradient) -> MLP;
 }
+
 impl AddLayer for Layer {
     fn add_layer(self, other: LayerGradient) -> Layer {
         match (self, other) {
