@@ -19,6 +19,7 @@ fn main() {
     let lr = 0.01f32;
     let wd = 0.00001f32;
 
+    println!("YO mama");
     // test backward
     // simple example for y=x^2
     let x0 = Array::linspace(-1.0, 1.0, n)
@@ -30,20 +31,23 @@ fn main() {
 
     let mut mlp = utils::create_mlp(1, latent_size, 1, activation, activation_prime);
     // println!("{:?}", mlp);
-    // let (_lol, gradients) = mlp.backprop(&x0, &y0, utils::mse_prime);
-    // println!("{:?}", gradients);
-
-    // let mlp = utils::train_mlp(
-    //     &mut mlp,
-    //     &x0,
-    //     &y0,
-    //     lr,
-    //     wd,
-    //     epochs,
-    //     utils::mse,
-    //     utils::mse_prime,
-    //     false,
+    let (_lol, gradients) = mlp.backprop(&x0, &y0, utils::mse_prime);
+    // println!(
+    //     "{:?}",
+    //     gradients.clone() + gradients.clone() + gradients.clone() * -2.0f32
     // );
+
+    let mlp = utils::train_mlp(
+        &mut mlp,
+        &x0,
+        &y0,
+        lr,
+        wd,
+        epochs,
+        utils::mse,
+        utils::mse_prime,
+        false,
+    );
 
     // let now = std::time::Instant::now();
     // let n2 = 1000;
