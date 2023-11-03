@@ -1,3 +1,5 @@
+use core::panic;
+
 use gnuplot::{Caption, Color, Figure};
 use itertools::izip;
 use ndarray::parallel::prelude::*;
@@ -304,40 +306,53 @@ impl core::ops::Add<f32> for Layer {
 }
 
 trait AddLayer {
-    fn add_layer(self, other: LayerGradient) -> Layer;
+    fn add_layer(self, other: Layer) -> Layer;
+}
+trait DivLayer {
+    fn div_layer(self, other: Layer) -> Layer;
 }
 
 trait AddMLP {
-    fn add_mlp(self, other: MLPGradient) -> MLP;
+    fn add_mlp(self, other: MLP) -> MLP;
 }
 
+// implement add layer for references of two Layers
 impl AddLayer for Layer {
-    fn add_layer(self, other: LayerGradient) -> Layer {
+    fn add_layer(self, other: Layer) -> Layer {
         match (self, other) {
-            (Layer::Normalisation { eps, mean, std }, LayerGradient::NormalisationGradient {}) => {
+            (
+                Layer::Normalisation { eps, mean, std },
+                Layer::Normalisation {
+                    eps: eps2,
+                    mean: mean2,
+                    std: std2,
+                },
+            ) => {
                 return Layer::Normalisation {
                     eps: eps,
                     mean: mean,
                     std: std,
                 };
             }
-            (Layer::Layernorm { eps }, LayerGradient::LayernormGradient {}) => {
+            (Layer::Layernorm { eps }, Layer::Layernorm { eps: eps2 }) => {
                 return Layer::Layernorm { eps: eps };
             }
             (
                 Layer::Dense {
-                    weights: weights1,
-                    bias: bias1,
-                    activation: activation,
-                    activation_prime: activation_prime,
+                    weights,
+                    bias,
+                    activation,
+                    activation_prime,
                 },
-                LayerGradient::DenseGradient {
+                Layer::Dense {
                     weights: weights2,
                     bias: bias2,
+                    activation: activation2,
+                    activation_prime: activation_prime2,
                 },
             ) => {
-                let weights = weights1 + weights2;
-                let bias = bias1 + bias2;
+                let weights = weights + weights2;
+                let bias = bias + bias2;
                 return Layer::Dense {
                     weights: weights,
                     bias: bias,
@@ -347,70 +362,160 @@ impl AddLayer for Layer {
             }
             (
                 Layer::DensenoBias {
-                    weights: weights1,
-                    activation: activation,
-                    activation_prime: activation_prime,
+                    weights,
+                    activation,
+                    activation_prime,
                 },
-                LayerGradient::DensenoBiasGradient { weights: weights2 },
+                Layer::DensenoBias {
+                    weights: weights2,
+                    activation: activation2,
+                    activation_prime: activation_prime2,
+                },
             ) => {
-                let weights = weights1 + weights2;
+                let weights = weights + weights2;
                 return Layer::DensenoBias {
                     weights: weights,
                     activation: activation,
                     activation_prime: activation_prime,
                 };
             }
-            _ => panic!("You cannot add different layers!"),
+            (Layer::NormalisationGradient, Layer::NormalisationGradient) => {
+                return Layer::NormalisationGradient;
+            }
+            (Layer::LayernormGradient, Layer::LayernormGradient) => {
+                return Layer::LayernormGradient;
+            }
+            (
+                Layer::DenseGradient { weights, bias },
+                Layer::DenseGradient {
+                    weights: weights2,
+                    bias: bias2,
+                },
+            ) => {
+                let weights = weights + weights2;
+                let bias = bias + bias2;
+                return Layer::DenseGradient {
+                    weights: weights,
+                    bias: bias,
+                };
+            }
+            _ => panic!("Cannot add layers"),
         }
     }
 }
 
-impl core::ops::Add<f32> for MLPGradient {
-    type Output = Self;
-    fn add(self, scalar: f32) -> Self {
-        let layers = self.layers.into_iter().map(|x| x + scalar).collect();
-        MLPGradient { layers }
+impl DivLayer for Layer {
+    fn div_layer(self, other: Layer) -> Layer {
+        match (self, other) {
+            (
+                Layer::Normalisation { eps, mean, std },
+                Layer::Normalisation {
+                    eps: eps2,
+                    mean: mean2,
+                    std: std2,
+                },
+            ) => {
+                return Layer::Normalisation {
+                    eps: eps,
+                    mean: mean,
+                    std: std,
+                };
+            }
+            (Layer::Layernorm { eps }, Layer::Layernorm { eps: eps2 }) => {
+                return Layer::Layernorm { eps: eps };
+            }
+            (
+                Layer::Dense {
+                    weights,
+                    bias,
+                    activation,
+                    activation_prime,
+                },
+                Layer::Dense {
+                    weights: weights2,
+                    bias: bias2,
+                    activation: activation2,
+                    activation_prime: activation_prime2,
+                },
+            ) => {
+                let weights = weights / weights2;
+                let bias = bias / bias2;
+                return Layer::Dense {
+                    weights: weights,
+                    bias: bias,
+                    activation: activation,
+                    activation_prime: activation_prime,
+                };
+            }
+            (
+                Layer::DensenoBias {
+                    weights,
+                    activation,
+                    activation_prime,
+                },
+                Layer::DensenoBias {
+                    weights: weights2,
+                    activation: activation2,
+                    activation_prime: activation_prime2,
+                },
+            ) => {
+                let weights = weights / weights2;
+                return Layer::DensenoBias {
+                    weights: weights,
+                    activation: activation,
+                    activation_prime: activation_prime,
+                };
+            }
+            (Layer::NormalisationGradient, Layer::NormalisationGradient) => {
+                return Layer::NormalisationGradient;
+            }
+            (Layer::LayernormGradient, Layer::LayernormGradient) => {
+                return Layer::LayernormGradient;
+            }
+            (
+                Layer::DenseGradient { weights, bias },
+                Layer::DenseGradient {
+                    weights: weights2,
+                    bias: bias2,
+                },
+            ) => {
+                let weights = weights / weights2;
+                let bias = bias / bias2;
+                return Layer::DenseGradient {
+                    weights: weights,
+                    bias: bias,
+                };
+            }
+            _ => panic!("Cannot divide layers"),
+        }
     }
 }
-
-impl core::ops::Mul<f32> for MLPGradient {
+impl core::ops::Add<f32> for MLP {
     type Output = Self;
-    fn mul(self, scalar: f32) -> Self {
-        let layers = self.layers.into_iter().map(|x| x * scalar).collect();
-        MLPGradient { layers }
+    fn add(self, scalar: f32) -> Self {
+        let layers = self.layers.iter().map(|x| x.to_owned() + scalar).collect();
+        MLP { layers }
     }
 }
 
 impl core::ops::Mul<f32> for MLP {
     type Output = Self;
     fn mul(self, scalar: f32) -> Self {
-        let layers = self.layers.into_iter().map(|x| x * scalar).collect();
+        let layers = self.layers.iter().map(|x| x.to_owned() * scalar).collect();
         MLP { layers }
     }
 }
-impl core::ops::Div for MLPGradient {
+
+impl core::ops::Div for MLP {
     type Output = Self;
     fn div(self, other: Self) -> Self {
         let layers = self
             .layers
-            .into_iter()
-            .zip(other.layers.into_iter())
-            .map(|(x, y)| x / y)
+            .iter()
+            .zip(other.layers.iter())
+            .map(|(x, y)| x.to_owned().div_layer(y.to_owned()))
             .collect();
-        MLPGradient { layers }
-    }
-}
-
-impl core::ops::Add for MLPGradient {
-    type Output = Self;
-    fn add(self, other: Self) -> Self {
-        let layers = self
-            .layers
-            .into_iter()
-            .zip(other.layers.into_iter())
-            .map(|(x, y)| x + y)
-            .collect();
-        MLPGradient { layers }
+        MLP { layers }
     }
 }
 
@@ -419,16 +524,16 @@ impl core::ops::Add for MLP {
     fn add(self, other: Self) -> Self {
         let layers = self
             .layers
-            .into_iter()
-            .zip(other.layers.into_iter())
-            .map(|(x, y)| x + y)
+            .iter()
+            .zip(other.layers.iter())
+            .map(|(x, y)| x.clone().add_layer(y.clone()))
             .collect();
         MLP { layers }
     }
 }
 
 impl AddMLP for MLP {
-    fn add_mlp(self, other: MLPGradient) -> MLP {
+    fn add_mlp(self, other: MLP) -> MLP {
         let layers = self
             .layers
             .iter()
@@ -462,6 +567,7 @@ impl Layer {
                 activation,
                 activation_prime,
             } => (activation)(&(input.dot(weights))),
+            _ => panic!("What is this layer?"),
         }
     }
     pub fn backward(
@@ -469,13 +575,13 @@ impl Layer {
         input: &Array2<f32>,
         output: &Array2<f32>,
         pullback: &Array2<f32>,
-    ) -> (Array2<f32>, LayerGradient) {
+    ) -> (Array2<f32>, Layer) {
         match self {
             Layer::Normalisation { eps, mean, std } => {
-                return (pullback.clone(), LayerGradient::NormalisationGradient {});
+                return (pullback.clone(), Layer::NormalisationGradient {});
             }
             Layer::Layernorm { eps } => {
-                return (pullback.clone(), LayerGradient::LayernormGradient {});
+                return (pullback.clone(), Layer::LayernormGradient {});
             }
             Layer::Dense {
                 weights,
@@ -487,7 +593,7 @@ impl Layer {
                 let bias = dz.clone().sum_axis(Axis(0)).insert_axis(Axis(0));
                 let weights = input.t().dot(&dz);
                 let pullback = dz.dot(&weights.t());
-                let gradient = LayerGradient::DenseGradient { weights, bias };
+                let gradient = Layer::DenseGradient { weights, bias };
                 (pullback, gradient)
             }
             Layer::DensenoBias {
@@ -498,9 +604,10 @@ impl Layer {
                 let dz = pullback * (activation_prime)(output);
                 let weights = input.t().dot(&dz);
                 let pullback = dz.dot(&weights.t());
-                let gradient = LayerGradient::DensenoBiasGradient { weights };
+                let gradient = Layer::DensenoBiasGradient { weights };
                 (pullback, gradient)
             }
+            _ => panic!("Layer unknown to mankind"),
         }
     }
 }
@@ -555,7 +662,7 @@ impl MLP {
         }
         output
     }
-    pub fn pullback(&self, x: &Array2<f32>, pullback: &Array2<f32>) -> MLPGradient {
+    pub fn pullback(&self, x: &Array2<f32>, pullback: &Array2<f32>) -> MLP {
         let mut gradients = Vec::new();
         let mut outputs = Vec::new();
         outputs.push(x.clone());
@@ -572,14 +679,14 @@ impl MLP {
             gradients.push(gradient);
         }
         gradients.reverse();
-        MLPGradient { layers: gradients }
+        MLP { layers: gradients }
     }
     pub fn backprop(
         &self,
         x: &Array2<f32>,
         target: &Array2<f32>,
         loss_prime: fn(&Array2<f32>, &Array2<f32>) -> Array2<f32>,
-    ) -> (Vec<Array2<f32>>, MLPGradient) {
+    ) -> (Vec<Array2<f32>>, MLP) {
         let mut gradients = Vec::new();
         let mut outputs = Vec::new();
         outputs.push(x.clone());
@@ -596,7 +703,7 @@ impl MLP {
             gradients.push(gradient);
         }
         gradients.reverse();
-        (outputs, MLPGradient { layers: gradients })
+        (outputs, MLP { layers: gradients })
     }
     pub fn parallel_backprop(
         &self,
@@ -604,7 +711,7 @@ impl MLP {
         y0: &Array2<f32>,
         loss_prime: fn(&Array2<f32>, &Array2<f32>) -> Array2<f32>,
         batch_size: usize,
-    ) -> MLPGradient {
+    ) -> MLP {
         // parallel chunks
         let chunks = x0
             .axis_chunks_iter(Axis(0), batch_size)
@@ -612,7 +719,7 @@ impl MLP {
             .zip(y0.axis_chunks_iter(Axis(0), batch_size).into_par_iter());
         let parchunks = chunks;
         // parallel call and dump into a vec
-        let vecgrads: Vec<MLPGradient> = parchunks
+        let vecgrads: Vec<MLP> = parchunks
             .map(|(xx, yy)| self.backprop(&xx.to_owned(), &yy.to_owned(), loss_prime).1)
             .collect();
         // take the mean
@@ -687,64 +794,33 @@ pub fn create_mlp_det(
 }
 
 #[inline]
-pub fn fmap(mlp: MLPGradient, f: &impl Fn(f32) -> f32) -> MLPGradient {
+pub fn fmap(mlp: MLP, f: &impl Fn(f32) -> f32) -> MLP {
     let mut layers = Vec::new();
     for layer in &mlp.layers {
         match layer {
-            LayerGradient::NormalisationGradient {} => {
-                layers.push(LayerGradient::NormalisationGradient)
-            }
-            LayerGradient::LayernormGradient {} => layers.push(LayerGradient::LayernormGradient),
-            LayerGradient::DenseGradient { weights, bias } => {
+            Layer::NormalisationGradient {} => layers.push(Layer::NormalisationGradient),
+            Layer::LayernormGradient {} => layers.push(Layer::LayernormGradient),
+            Layer::DenseGradient { weights, bias } => {
                 let weights = &weights.mapv(f);
                 let bias = &bias.mapv(f);
-                let gradient = LayerGradient::DenseGradient {
+                let gradient = Layer::DenseGradient {
                     weights: weights.clone(),
                     bias: bias.clone(),
                 };
                 layers.push(gradient);
             }
-            LayerGradient::DensenoBiasGradient { weights } => {
+            Layer::DensenoBiasGradient { weights } => {
                 let weights = &weights.mapv(f);
-                let gradient = LayerGradient::DensenoBiasGradient {
+                let gradient = Layer::DensenoBiasGradient {
                     weights: weights.clone(),
                 };
                 layers.push(gradient);
             }
+            _ => panic!("panic in fmap"),
         }
     }
-    MLPGradient { layers }
+    MLP { layers }
 }
-
-// pub fn fmulti(mlp: &MLPGradient, a: f32) -> MLPGradient {
-//     let mut layers = Vec::new();
-//     for layer in mlp.layers {
-//         match layer {
-//             LayerGradient::NormalisationGradient {} => {
-//                 layers.push(LayerGradient::NormalisationGradient {});
-//             }
-//             LayerGradient::LayernormGradient {} => {
-//                 layers.push(LayerGradient::LayernormGradient {});
-//             }
-//             LayerGradient::DenseGradient { weights, bias } => {
-//                 let weights = weights * a;
-//                 let bias = bias * a;
-//                 let gradient = LayerGradient::DenseGradient {
-//                     weights: weights,
-//                     bias: bias,
-//                 };
-//                 layers.push(gradient);
-//             }
-
-//             LayerGradient::DensenoBiasGradient { weights } => {
-//                 let weights = weights * a;
-//                 let gradient = LayerGradient::DensenoBiasGradient { weights: weights };
-//                 layers.push(gradient);
-//             }
-//         }
-//     }
-//     MLPGradient { layers }
-// }
 
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
@@ -754,12 +830,12 @@ pub struct Adam {
     pub beta1: f32,
     pub beta2: f32,
     pub epsilon: f32,
-    pub m: MLPGradient,
-    pub v: MLPGradient,
+    pub m: MLP,
+    pub v: MLP,
     pub t: i32,
 }
 
-pub fn adamw_init(grads: &MLPGradient, lr: f32, lambda: f32, beta1: f32, beta2: f32) -> Adam {
+pub fn adamw_init(grads: &MLP, lr: f32, lambda: f32, beta1: f32, beta2: f32) -> Adam {
     let m = fmap(grads.clone(), &|_| 0.0 as f32);
     let v = fmap(grads.clone(), &|_| 0.0 as f32);
     Adam {
@@ -775,7 +851,7 @@ pub fn adamw_init(grads: &MLPGradient, lr: f32, lambda: f32, beta1: f32, beta2: 
 }
 
 #[inline]
-pub fn adamw(mlp: MLP, grads: MLPGradient, mut adam: &mut Adam) -> MLP {
+pub fn adamw(mlp: MLP, grads: MLP, mut adam: &mut Adam) -> MLP {
     adam.t = adam.t + 1;
     let lr = adam.lr;
     let lambda = adam.lambda;
