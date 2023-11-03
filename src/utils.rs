@@ -9,7 +9,7 @@ use ndarray_rand::RandomExt;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug)]
-enum Layer {
+pub enum Layer {
     Normalisation {
         eps: f32,
         mean: Array2<f32>,
