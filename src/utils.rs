@@ -399,7 +399,32 @@ impl AddLayer for Layer {
                     bias: bias,
                 };
             }
-            _ => panic!("Cannot add layers"),
+            (
+                Layer::Dense {
+                    weights: weights,
+                    bias: bias,
+                    activation: activation,
+                    activation_prime: activation_prime,
+                },
+                Layer::DenseGradient {
+                    weights: weights2,
+                    bias: bias2,
+                },
+            ) => {
+                let weights = weights + weights2;
+                let bias = bias + bias2;
+                return Layer::Dense {
+                    weights: weights,
+                    bias: bias,
+                    activation: activation,
+                    activation_prime: activation_prime,
+                };
+            }
+            _ => {
+                // println!("{:?}", self);
+                // println!("{:?}", other);
+                panic!("Cannot add layers")
+            }
         }
     }
 }

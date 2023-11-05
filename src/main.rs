@@ -32,22 +32,20 @@ fn main() {
     let mut mlp = utils::create_mlp(1, latent_size, 1, activation, activation_prime);
     // println!("{:?}", mlp);
     let (_lol, gradients) = mlp.backprop(&x0, &y0, utils::mse_prime);
-    // println!(
-    //     "{:?}",
-    //     gradients.clone() + gradients.clone() + gradients.clone() * -2.0f32
-    // );
 
-    let mlp = utils::train_mlp(
-        &mut mlp,
-        &x0,
-        &y0,
-        lr,
-        wd,
-        epochs,
-        utils::mse,
-        utils::mse_prime,
-        false,
-    );
+    // println!("{:?}", mlp + gradients * 0.5);
+
+    // let mlp = utils::train_mlp(
+    //     &mut mlp,
+    //     &x0,
+    //     &y0,
+    //     lr,
+    //     wd,
+    //     epochs,
+    //     utils::mse,
+    //     utils::mse_prime,
+    //     false,
+    // );
 
     // let now = std::time::Instant::now();
     // let n2 = 1000;
