@@ -629,10 +629,8 @@ pub fn adamw(mlp: MLP, grads: MLPGradient, mut adam: &mut Adam) -> MLP {
         let vb = b2 * (&adam.v.layers[ll].bias) + b22 * (&grads.layers[ll].bias.mapv(|x| x * x));
         let mhatb = mb.mapv(|x| x / (1.0 - b.powi(t)));
         let mhatw = mw.mapv(|x| x / (1.0 - b.powi(t)));
-        let vhatb = vb.mapv(|x| x / (1.0 - b2.powi(t)));
-        let vhatw = vw.mapv(|x| x / (1.0 - b2.powi(t)));
-        let vhatb = vhatb.mapv(|x| x.sqrt());
-        let vhatw = vhatw.mapv(|x| x.sqrt());
+        let vhatb = vb.mapv(|x| (x / (1.0 - b2.powi(t))).sqrt());
+        let vhatw = vw.mapv(|x| (x / (1.0 - b2.powi(t))).sqrt());
         let w = &mlp.layers[ll].weights
             - adam.lr * &mhatw / (&vhatw + adam.epsilon)
             - adam.lambda * &mlp.layers[ll].weights;

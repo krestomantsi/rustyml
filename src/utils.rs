@@ -891,7 +891,7 @@ pub fn adamw(mlp: MLP, grads: MLP, adam: &mut Adam) -> MLP {
     let vhat = fmap(v.clone(), &(|x| (x / (1.0f32 - b2.powi(t))).sqrt()));
     adam.m = m.clone();
     adam.v = v.clone();
-    mlp.clone().add_mlp(mhat * (-lr) / (vhat + adam.epsilon)) + mlp * (-lambda)
+    return mlp.clone().add_mlp(mhat * (-lr) / (vhat + adam.epsilon)) + mlp * (-lambda);
 }
 
 pub fn train_mlp(
