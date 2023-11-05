@@ -33,6 +33,8 @@ fn main() {
     // println!("{:?}", mlp);
     let (_lol, gradients) = mlp.backprop(&x0, &y0, utils::mse_prime);
 
+    let mut opt = adamw_init(&gradients, lr, wd, 0.9, 0.999);
+    let mlp = adamw(mlp, gradients, &mut opt);
     // println!("{:?}", mlp + gradients * 0.5);
 
     // let mlp = utils::train_mlp(
