@@ -9,11 +9,12 @@ use rayon::prelude::*;
 
 // include utils.rs file
 mod utils;
+use utils::{create_mlp, mse, mse_prime, swish, swish_prime, train_mlp};
 
 fn main() {
     let latent_size = 32;
-    let activation = utils::swish;
-    let activation_prime = utils::swish_prime;
+    let activation = swish;
+    let activation_prime = swish_prime;
     let n = 100;
     let epochs = 30_000;
     let lr = 0.01f32;
@@ -29,25 +30,17 @@ fn main() {
     let y0 = x0.mapv(|xi| (4.0f32 * pi * xi).sin());
     // let y0 = x0.mapv(|xi| xi * xi * xi);
 
-    let mut mlp = utils::create_mlp(1, latent_size, 1, activation, activation_prime);
+    let mut mlp = create_mlp(1, latent_size, 1, activation, activation_prime);
     // println!("{:?}", mlp);
-    let (_lol, gradients) = mlp.backprop(&x0, &y0, utils::mse_prime);
+    let (_lol, grads) = mlp.backprop(&x0, &y0, mse_prime);
 
-    let mut opt = adamw_init(&gradients, lr, wd, 0.9, 0.999);
-    let mlp = adamw(mlp, gradients, &mut opt);
+    // let mut adam = adamw_init(&grads, lr, wd, 0.9, 0.999);
+    // let mlp = adamw(mlp, grads, &mut adam);
+    // println!("{:?}", mlp);
+
     // println!("{:?}", mlp + gradients * 0.5);
 
-    // let mlp = utils::train_mlp(
-    //     &mut mlp,
-    //     &x0,
-    //     &y0,
-    //     lr,
-    //     wd,
-    //     epochs,
-    //     utils::mse,
-    //     utils::mse_prime,
-    //     false,
-    // );
+    let mlp = train_mlp(&mut mlp, &x0, &y0, lr, wd, epochs, mse, mse_prime, false);
 
     // let now = std::time::Instant::now();
     // let n2 = 1000;

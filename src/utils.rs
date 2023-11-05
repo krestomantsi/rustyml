@@ -876,7 +876,7 @@ pub fn adamw_init(grads: &MLP, lr: f32, lambda: f32, beta1: f32, beta2: f32) -> 
 }
 
 #[inline]
-pub fn adamw(mlp: MLP, grads: MLP, mut adam: &mut Adam) -> MLP {
+pub fn adamw(mlp: MLP, grads: MLP, adam: &mut Adam) -> MLP {
     adam.t = adam.t + 1;
     let lr = adam.lr;
     let lambda = adam.lambda;
@@ -885,13 +885,13 @@ pub fn adamw(mlp: MLP, grads: MLP, mut adam: &mut Adam) -> MLP {
     let b2: f32 = adam.beta2;
     let b11: f32 = 1.0 - b;
     let b22: f32 = 1.0 - b2;
-    let m = adam.v.clone() * b + grads.clone() * b11;
-    let v = adam.v.clone() * b2 + fmap(grads, &(|x| x * x));
+    let m = adam.m.clone() * b + grads.clone() * b11;
+    let v = adam.v.clone() * b2 + fmap(grads, &(|x| x * x)) * b22;
     let mhat = fmap(m.clone(), &(|x| x / (1.0f32 - b.powi(t))));
     let vhat = fmap(v.clone(), &(|x| (x / (1.0f32 - b2.powi(t))).sqrt()));
     adam.m = m.clone();
     adam.v = v.clone();
-    mlp.clone().add_mlp(mhat * lr / vhat + adam.epsilon) + mlp * (-lambda)
+    mlp.clone().add_mlp(mhat * (-lr) / (vhat + adam.epsilon)) + mlp * (-lambda)
 }
 
 pub fn train_mlp(
