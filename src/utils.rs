@@ -1,48 +1,74 @@
-use core::panic;
-
 use gnuplot::{Caption, Color, Figure};
-use itertools::izip;
 use ndarray::parallel::prelude::*;
 use ndarray::prelude::*;
 use ndarray_rand::rand_distr::{Distribution, Normal, Uniform};
 use ndarray_rand::RandomExt;
 use serde::{Deserialize, Serialize};
 
+// i want to implement a layer abstraction with a forward and backward pass
+// Implement Add for Vec<T> where T implements Add
+
 #[derive(Clone, Debug)]
-pub enum Layer {
-    Normalisation {
-        eps: f32,
-        mean: Array2<f32>,
-        std: Array2<f32>,
-    },
-    Layernorm {
-        eps: f32,
-    },
-    Dense {
-        weights: Array2<f32>,
-        bias: Array2<f32>,
-        activation: fn(&Array2<f32>) -> Array2<f32>,
-        activation_prime: fn(&Array2<f32>) -> Array2<f32>,
-    },
-    DensenoBias {
-        weights: Array2<f32>,
-        activation: fn(&Array2<f32>) -> Array2<f32>,
-        activation_prime: fn(&Array2<f32>) -> Array2<f32>,
-    },
-    NormalisationGradient,
-    LayernormGradient,
-    DenseGradient {
-        weights: Array2<f32>,
-        bias: Array2<f32>,
-    },
-    DensenoBiasGradient {
-        weights: Array2<f32>,
-    },
+pub struct Dense {
+    pub weights: Array2<f32>,
+    pub bias: Array2<f32>,
+    pub activation: fn(&Array2<f32>) -> Array2<f32>,
+    pub activation_prime: fn(&Array2<f32>) -> Array2<f32>,
+}
+
+#[derive(Clone, Debug)]
+pub struct DensenoBias {
+    pub weights: Array2<f32>,
+    pub activation: fn(&Array2<f32>) -> Array2<f32>,
+    pub activation_prime: fn(&Array2<f32>) -> Array2<f32>,
+}
+
+#[derive(Clone, Debug)]
+pub struct DensenoBiasGradient {
+    pub weights: Array2<f32>,
+}
+
+#[derive(Clone, Debug)]
+pub struct DenseGradient {
+    pub weights: Array2<f32>,
+    pub bias: Array2<f32>,
+}
+
+#[derive(Clone, Debug)]
+pub struct LayerNorm {
+    pub weights: Array2<f32>,
+    pub bias: Array2<f32>,
 }
 
 #[derive(Clone, Debug)]
 pub struct MLP {
-    pub layers: Vec<Layer>,
+    pub layers: Vec<Dense>,
+}
+
+#[derive(Clone, Debug)]
+pub struct MLPLayerNorm {
+    pub layers: Vec<Dense>,
+    pub layernorm: LayerNorm,
+}
+
+// implement add for Vec<DenseGradient>
+impl core::ops::Add for MLPGradient {
+    type Output = Self;
+    fn add(self, other: Self) -> Self {
+        let mut layers = Vec::new();
+        for i in 0..self.layers.len() {
+            let weights = &self.layers[i].weights + &other.layers[i].weights;
+            let bias = &self.layers[i].bias + &other.layers[i].bias;
+            let gradient = DenseGradient { weights, bias };
+            layers.push(gradient);
+        }
+        MLPGradient { layers }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct MLPGradient {
+    pub layers: Vec<DenseGradient>,
 }
 
 // relu on f32
@@ -179,461 +205,24 @@ pub fn none_activation_prime(x: &Array2<f32>) -> Array2<f32> {
     Array2::<f32>::ones(x.raw_dim())
 }
 
-impl core::ops::Mul<f32> for Layer {
-    type Output = Self;
-    fn mul(self, scalar: f32) -> Self {
-        match self {
-            Layer::Normalisation { eps, mean, std } => {
-                return Layer::Normalisation {
-                    eps: eps,
-                    mean: mean,
-                    std: std,
-                };
-            }
-            Layer::Layernorm { eps } => {
-                return Layer::Layernorm { eps: eps };
-            }
-            Layer::Dense {
-                weights,
-                bias,
-                activation,
-                activation_prime,
-            } => {
-                let weights = scalar * weights;
-                let bias = scalar * bias;
-                return Layer::Dense {
-                    weights: weights,
-                    bias: bias,
-                    activation: activation,
-                    activation_prime: activation_prime,
-                };
-            }
-            Layer::DensenoBias {
-                weights,
-                activation,
-                activation_prime,
-            } => {
-                let weights = scalar * weights;
-                return Layer::DensenoBias {
-                    weights: weights,
-                    activation: activation,
-                    activation_prime: activation_prime,
-                };
-            }
-            Layer::NormalisationGradient => {
-                return Layer::NormalisationGradient;
-            }
-            Layer::LayernormGradient => {
-                return Layer::LayernormGradient;
-            }
-            Layer::DenseGradient { weights, bias } => {
-                let weights = scalar * weights;
-                let bias = scalar * bias;
-                return Layer::DenseGradient {
-                    weights: weights,
-                    bias: bias,
-                };
-            }
-            Layer::DensenoBiasGradient { weights } => {
-                let weights = scalar * weights;
-                return Layer::DensenoBiasGradient { weights: weights };
-            }
-        }
-    }
-}
-
-impl core::ops::Add<f32> for Layer {
-    type Output = Self;
-    fn add(self, scalar: f32) -> Self {
-        match self {
-            Layer::Normalisation { eps, mean, std } => {
-                return Layer::Normalisation {
-                    eps: eps,
-                    mean: mean,
-                    std: std,
-                };
-            }
-            Layer::Layernorm { eps } => {
-                return Layer::Layernorm { eps: eps };
-            }
-            Layer::Dense {
-                weights,
-                bias,
-                activation,
-                activation_prime,
-            } => {
-                let weights = scalar + weights;
-                let bias = scalar + bias;
-                return Layer::Dense {
-                    weights: weights,
-                    bias: bias,
-                    activation: activation,
-                    activation_prime: activation_prime,
-                };
-            }
-            Layer::DensenoBias {
-                weights,
-                activation,
-                activation_prime,
-            } => {
-                let weights = scalar + weights;
-                return Layer::DensenoBias {
-                    weights: weights,
-                    activation: activation,
-                    activation_prime: activation_prime,
-                };
-            }
-            Layer::NormalisationGradient => {
-                return Layer::NormalisationGradient;
-            }
-            Layer::LayernormGradient => {
-                return Layer::LayernormGradient;
-            }
-            Layer::DenseGradient { weights, bias } => {
-                let weights = scalar + weights;
-                let bias = scalar + bias;
-                return Layer::DenseGradient {
-                    weights: weights,
-                    bias: bias,
-                };
-            }
-            Layer::DensenoBiasGradient { weights } => {
-                let weights = scalar + weights;
-                return Layer::DensenoBiasGradient { weights: weights };
-            }
-        }
-    }
-}
-
-trait AddLayer {
-    fn add_layer(self, other: Layer) -> Layer;
-}
-trait DivLayer {
-    fn div_layer(self, other: Layer) -> Layer;
-}
-
-trait AddMLP {
-    fn add_mlp(self, other: MLP) -> MLP;
-}
-
-// implement add layer for references of two Layers
-impl AddLayer for Layer {
-    fn add_layer(self, other: Layer) -> Layer {
-        match (self, other) {
-            (
-                Layer::Normalisation { eps, mean, std },
-                Layer::Normalisation {
-                    eps: eps2,
-                    mean: mean2,
-                    std: std2,
-                },
-            ) => {
-                return Layer::Normalisation {
-                    eps: eps,
-                    mean: mean,
-                    std: std,
-                };
-            }
-            (Layer::Layernorm { eps }, Layer::Layernorm { eps: eps2 }) => {
-                return Layer::Layernorm { eps: eps };
-            }
-            (
-                Layer::Dense {
-                    weights,
-                    bias,
-                    activation,
-                    activation_prime,
-                },
-                Layer::Dense {
-                    weights: weights2,
-                    bias: bias2,
-                    activation: activation2,
-                    activation_prime: activation_prime2,
-                },
-            ) => {
-                let weights = weights + weights2;
-                let bias = bias + bias2;
-                return Layer::Dense {
-                    weights: weights,
-                    bias: bias,
-                    activation: activation,
-                    activation_prime: activation_prime,
-                };
-            }
-            (
-                Layer::DensenoBias {
-                    weights,
-                    activation,
-                    activation_prime,
-                },
-                Layer::DensenoBias {
-                    weights: weights2,
-                    activation: activation2,
-                    activation_prime: activation_prime2,
-                },
-            ) => {
-                let weights = weights + weights2;
-                return Layer::DensenoBias {
-                    weights: weights,
-                    activation: activation,
-                    activation_prime: activation_prime,
-                };
-            }
-            (Layer::NormalisationGradient, Layer::NormalisationGradient) => {
-                return Layer::NormalisationGradient;
-            }
-            (Layer::LayernormGradient, Layer::LayernormGradient) => {
-                return Layer::LayernormGradient;
-            }
-            (
-                Layer::DenseGradient { weights, bias },
-                Layer::DenseGradient {
-                    weights: weights2,
-                    bias: bias2,
-                },
-            ) => {
-                let weights = weights + weights2;
-                let bias = bias + bias2;
-                return Layer::DenseGradient {
-                    weights: weights,
-                    bias: bias,
-                };
-            }
-            (
-                Layer::Dense {
-                    weights: weights,
-                    bias: bias,
-                    activation: activation,
-                    activation_prime: activation_prime,
-                },
-                Layer::DenseGradient {
-                    weights: weights2,
-                    bias: bias2,
-                },
-            ) => {
-                let weights = weights + weights2;
-                let bias = bias + bias2;
-                return Layer::Dense {
-                    weights: weights,
-                    bias: bias,
-                    activation: activation,
-                    activation_prime: activation_prime,
-                };
-            }
-            _ => {
-                // println!("{:?}", self);
-                // println!("{:?}", other);
-                panic!("Cannot add layers")
-            }
-        }
-    }
-}
-
-impl DivLayer for Layer {
-    fn div_layer(self, other: Layer) -> Layer {
-        match (self, other) {
-            (
-                Layer::Normalisation { eps, mean, std },
-                Layer::Normalisation {
-                    eps: eps2,
-                    mean: mean2,
-                    std: std2,
-                },
-            ) => {
-                return Layer::Normalisation {
-                    eps: eps,
-                    mean: mean,
-                    std: std,
-                };
-            }
-            (Layer::Layernorm { eps }, Layer::Layernorm { eps: eps2 }) => {
-                return Layer::Layernorm { eps: eps };
-            }
-            (
-                Layer::Dense {
-                    weights,
-                    bias,
-                    activation,
-                    activation_prime,
-                },
-                Layer::Dense {
-                    weights: weights2,
-                    bias: bias2,
-                    activation: activation2,
-                    activation_prime: activation_prime2,
-                },
-            ) => {
-                let weights = weights / weights2;
-                let bias = bias / bias2;
-                return Layer::Dense {
-                    weights: weights,
-                    bias: bias,
-                    activation: activation,
-                    activation_prime: activation_prime,
-                };
-            }
-            (
-                Layer::DensenoBias {
-                    weights,
-                    activation,
-                    activation_prime,
-                },
-                Layer::DensenoBias {
-                    weights: weights2,
-                    activation: activation2,
-                    activation_prime: activation_prime2,
-                },
-            ) => {
-                let weights = weights / weights2;
-                return Layer::DensenoBias {
-                    weights: weights,
-                    activation: activation,
-                    activation_prime: activation_prime,
-                };
-            }
-            (Layer::NormalisationGradient, Layer::NormalisationGradient) => {
-                return Layer::NormalisationGradient;
-            }
-            (Layer::LayernormGradient, Layer::LayernormGradient) => {
-                return Layer::LayernormGradient;
-            }
-            (
-                Layer::DenseGradient { weights, bias },
-                Layer::DenseGradient {
-                    weights: weights2,
-                    bias: bias2,
-                },
-            ) => {
-                let weights = weights / weights2;
-                let bias = bias / bias2;
-                return Layer::DenseGradient {
-                    weights: weights,
-                    bias: bias,
-                };
-            }
-            _ => panic!("Cannot divide layers"),
-        }
-    }
-}
-impl core::ops::Add<f32> for MLP {
-    type Output = Self;
-    fn add(self, scalar: f32) -> Self {
-        let layers = self.layers.iter().map(|x| x.to_owned() + scalar).collect();
-        MLP { layers }
-    }
-}
-
-impl core::ops::Mul<f32> for MLP {
-    type Output = Self;
-    fn mul(self, scalar: f32) -> Self {
-        let layers = self.layers.iter().map(|x| x.to_owned() * scalar).collect();
-        MLP { layers }
-    }
-}
-
-impl core::ops::Div for MLP {
-    type Output = Self;
-    fn div(self, other: Self) -> Self {
-        let layers = self
-            .layers
-            .iter()
-            .zip(other.layers.iter())
-            .map(|(x, y)| x.to_owned().div_layer(y.to_owned()))
-            .collect();
-        MLP { layers }
-    }
-}
-
-impl core::ops::Add for MLP {
-    type Output = Self;
-    fn add(self, other: Self) -> Self {
-        let layers = self
-            .layers
-            .iter()
-            .zip(other.layers.iter())
-            .map(|(x, y)| x.clone().add_layer(y.clone()))
-            .collect();
-        MLP { layers }
-    }
-}
-
-impl AddMLP for MLP {
-    fn add_mlp(self, other: MLP) -> MLP {
-        let layers = self
-            .layers
-            .iter()
-            .zip(other.layers.iter())
-            .map(|(x, y)| x.to_owned().add_layer(y.to_owned()))
-            .collect();
-        MLP { layers }
-    }
-}
-impl Layer {
+// implement forward method
+impl Dense {
     pub fn forward(&self, input: &Array2<f32>) -> Array2<f32> {
-        match self {
-            Layer::Normalisation { eps, mean, std } => {
-                let xmean = &mean.broadcast(input.shape()).unwrap();
-                let xstd = &std.broadcast(input.shape()).unwrap();
-                let eps = eps.to_owned();
-                let result = (input - xmean) / (xstd + eps);
-                return result.into_dimensionality::<Dim<[usize; 2]>>().unwrap();
-            }
-            Layer::Layernorm { eps } => {
-                return input.to_owned();
-            }
-            Layer::Dense {
-                weights,
-                bias,
-                activation,
-                activation_prime,
-            } => (activation)(&(input.dot(weights) + bias)),
-            Layer::DensenoBias {
-                weights,
-                activation,
-                activation_prime,
-            } => (activation)(&(input.dot(weights))),
-            _ => panic!("What is this layer?"),
-        }
+        (self.activation)(&(&input.dot(&self.weights) + &self.bias))
     }
     pub fn backward(
         &self,
         input: &Array2<f32>,
         output: &Array2<f32>,
         pullback: &Array2<f32>,
-    ) -> (Array2<f32>, Layer) {
-        match self {
-            Layer::Normalisation { eps, mean, std } => {
-                return (pullback.clone(), Layer::NormalisationGradient {});
-            }
-            Layer::Layernorm { eps } => {
-                return (pullback.clone(), Layer::LayernormGradient {});
-            }
-            Layer::Dense {
-                weights,
-                bias,
-                activation,
-                activation_prime,
-            } => {
-                let dz = pullback * (activation_prime)(output);
-                let bias = dz.clone().sum_axis(Axis(0)).insert_axis(Axis(0));
-                let weights = input.t().dot(&dz);
-                let pullback = dz.dot(&weights.t());
-                let gradient = Layer::DenseGradient { weights, bias };
-                (pullback, gradient)
-            }
-            Layer::DensenoBias {
-                weights,
-                activation,
-                activation_prime,
-            } => {
-                let dz = pullback * (activation_prime)(output);
-                let weights = input.t().dot(&dz);
-                let pullback = dz.dot(&weights.t());
-                let gradient = Layer::DensenoBiasGradient { weights };
-                (pullback, gradient)
-            }
-            _ => panic!("Layer unknown to mankind"),
-        }
+    ) -> (Array2<f32>, DenseGradient) {
+        // let m = input.shape()[0];
+        let dz = pullback * (self.activation_prime)(output);
+        let bias = dz.clone().sum_axis(Axis(0)).insert_axis(Axis(0));
+        let weights = input.t().dot(&dz);
+        let pullback = dz.dot(&self.weights.t());
+        let gradient = DenseGradient { weights, bias };
+        (pullback, gradient)
     }
 }
 
@@ -658,19 +247,19 @@ pub fn create_mlp(
         .mapv(|xi| xi / ((latent_size as f32).sqrt()));
     let bias3 = Array2::zeros((1, output_size));
 
-    layers.push(Layer::Dense {
+    layers.push(Dense {
         weights: weights1,
         bias: bias1,
         activation,
         activation_prime,
     });
-    layers.push(Layer::Dense {
+    layers.push(Dense {
         weights: weights2,
         bias: bias2,
         activation,
         activation_prime,
     });
-    layers.push(Layer::Dense {
+    layers.push(Dense {
         weights: weights3,
         bias: bias3,
         activation: none_activation,
@@ -687,7 +276,7 @@ impl MLP {
         }
         output
     }
-    pub fn pullback(&self, x: &Array2<f32>, pullback: &Array2<f32>) -> MLP {
+    pub fn pullback(&self, x: &Array2<f32>, pullback: &Array2<f32>) -> MLPGradient {
         let mut gradients = Vec::new();
         let mut outputs = Vec::new();
         outputs.push(x.clone());
@@ -704,14 +293,14 @@ impl MLP {
             gradients.push(gradient);
         }
         gradients.reverse();
-        MLP { layers: gradients }
+        MLPGradient { layers: gradients }
     }
     pub fn backprop(
         &self,
         x: &Array2<f32>,
         target: &Array2<f32>,
         loss_prime: fn(&Array2<f32>, &Array2<f32>) -> Array2<f32>,
-    ) -> (Vec<Array2<f32>>, MLP) {
+    ) -> (Vec<Array2<f32>>, MLPGradient) {
         let mut gradients = Vec::new();
         let mut outputs = Vec::new();
         outputs.push(x.clone());
@@ -728,7 +317,7 @@ impl MLP {
             gradients.push(gradient);
         }
         gradients.reverse();
-        (outputs, MLP { layers: gradients })
+        (outputs, MLPGradient { layers: gradients })
     }
     pub fn parallel_backprop(
         &self,
@@ -736,7 +325,7 @@ impl MLP {
         y0: &Array2<f32>,
         loss_prime: fn(&Array2<f32>, &Array2<f32>) -> Array2<f32>,
         batch_size: usize,
-    ) -> MLP {
+    ) -> MLPGradient {
         // parallel chunks
         let chunks = x0
             .axis_chunks_iter(Axis(0), batch_size)
@@ -744,18 +333,17 @@ impl MLP {
             .zip(y0.axis_chunks_iter(Axis(0), batch_size).into_par_iter());
         let parchunks = chunks;
         // parallel call and dump into a vec
-        let vecgrads: Vec<MLP> = parchunks
+        let vecgrads: Vec<MLPGradient> = parchunks
             .map(|(xx, yy)| self.backprop(&xx.to_owned(), &yy.to_owned(), loss_prime).1)
             .collect();
         // take the mean
-        let mut gradssum = fmap(vecgrads[0].clone(), &|_| 0.0 as f32);
+        let mut gradssum = fmap(vecgrads[0].clone(), |_| 0.0 as f32);
         let n = vecgrads.len();
         let n_over: f32 = 1.0 / (n as f32);
         for grads in vecgrads {
             gradssum = gradssum + grads
         }
-        // fmulti(&gradssum, n_over)
-        gradssum * (1.0f32 / n_over)
+        fmulti(gradssum, n_over)
     }
     // Parallel forward using rayon and axis_chunks_iter
     pub fn parallel_forward(&self, input: &Array2<f32>, batch_size: usize) -> Array2<f32> {
@@ -778,6 +366,77 @@ impl MLP {
         .unwrap();
         output
     }
+    // pub fn visualize(
+    //     &self,
+    //     x: &Array2<f32>,
+    //     y: &Array2<f32>,
+    //     loss_prime: fn(&Array2<f32>, &Array2<f32>) -> Array2<f32>,
+    // ) {
+    //     let (outputs, gradients) = self.backprop(x, y, loss_prime);
+    //     for i in 0..self.layers.len() {
+    //         println!("Layer {}", i);
+    //         println!("Weights");
+    //         println!("{:?}", self.layers[i].weights);
+    //         println!("Bias");
+    //         println!("{:?}", self.layers[i].bias);
+    //         println!("Gradient");
+    //         println!("{:?}", gradients.layers[i].weights);
+    //         println!("Output");
+    //         println!("{:?}", outputs[i]);
+    //         // gnuplot histogram of biases and weights
+    //         let mut fg = histogram(self.layers[i].bias.clone().into_raw_vec());
+    //     }
+    // }
+}
+
+// this wont stay here for long I need a better abstraction
+#[allow(dead_code)]
+pub fn sgd(mlp: &MLP, gradients: &MLPGradient, lr: f32) -> MLP {
+    let mut layers = Vec::new();
+    for i in 0..mlp.layers.len() {
+        let weights = &mlp.layers[i].weights - &gradients.layers[i].weights * lr;
+        let bias = &mlp.layers[i].bias - &gradients.layers[i].bias * lr;
+        layers.push(Dense {
+            weights,
+            bias,
+            activation: mlp.layers[i].activation,
+            activation_prime: mlp.layers[i].activation_prime,
+        });
+    }
+    MLP { layers }
+}
+
+pub fn train_mlp(
+    mlp: &MLP,
+    x: &Array2<f32>,
+    y: &Array2<f32>,
+    lr: f32,
+    wd: f32,
+    epochs: usize,
+    loss: fn(&Array2<f32>, &Array2<f32>) -> f32,
+    loss_prime: fn(&Array2<f32>, &Array2<f32>) -> Array2<f32>,
+    parallel: bool,
+) -> MLP {
+    let mut mlp = mlp.clone();
+    let now = std::time::Instant::now();
+    let (_lol, gradients) = mlp.backprop(x, y, loss_prime);
+    let mut opt = adamw_init(gradients, lr, wd, 0.9, 0.999);
+    for i in 0..epochs {
+        // let (_lol, gradients) = mlp.backprop(x, y, loss_prime);
+        // let gradients = mlp.parallel_backprop(x, y, loss_prime, 32);
+        // mlp = sgd(&mlp, &gradients, lr);
+        let gradients = if parallel {
+            mlp.parallel_backprop(x, y, loss_prime, 32)
+        } else {
+            mlp.backprop(x, y, loss_prime).1
+        };
+        mlp = adamw(mlp, gradients, &mut opt);
+        if i % 1500 == 0 {
+            println!("Epoch {} ||loss: {}", i, loss(&mlp.forward(x), y));
+        }
+    }
+    println!("Training took {:?} seconds", now.elapsed());
+    mlp
 }
 
 #[allow(dead_code)]
@@ -797,19 +456,19 @@ pub fn create_mlp_det(
     let weights3 = Array2::<f32>::ones((latent_size2, output_size));
     let bias3 = Array2::zeros((1, output_size));
 
-    layers.push(Layer::Dense {
+    layers.push(Dense {
         weights: weights1,
         bias: bias1,
         activation,
         activation_prime,
     });
-    layers.push(Layer::Dense {
+    layers.push(Dense {
         weights: weights2,
         bias: bias2,
         activation,
         activation_prime,
     });
-    layers.push(Layer::Dense {
+    layers.push(Dense {
         weights: weights3,
         bias: bias3,
         activation: none_activation,
@@ -818,35 +477,45 @@ pub fn create_mlp_det(
     MLP { layers }
 }
 
-#[inline]
-pub fn fmap(mlp: MLP, f: &impl Fn(f32) -> f32) -> MLP {
-    let mut layers = Vec::new();
-    for layer in &mlp.layers {
-        match layer {
-            Layer::NormalisationGradient {} => layers.push(Layer::NormalisationGradient),
-            Layer::LayernormGradient {} => layers.push(Layer::LayernormGradient),
-            Layer::DenseGradient { weights, bias } => {
-                let weights = &weights.mapv(f);
-                let bias = &bias.mapv(f);
-                let gradient = Layer::DenseGradient {
-                    weights: weights.clone(),
-                    bias: bias.clone(),
-                };
-                layers.push(gradient);
-            }
-            Layer::DensenoBiasGradient { weights } => {
-                let weights = &weights.mapv(f);
-                let gradient = Layer::DensenoBiasGradient {
-                    weights: weights.clone(),
-                };
-                layers.push(gradient);
-            }
-            _ => panic!("panic in fmap"),
+#[allow(dead_code)]
+pub fn count_in(a: f32, b: f32, xdata: Array1<f32>) -> usize {
+    let mut count = 0;
+    for i in 0..xdata.len() {
+        if xdata[i] >= a && xdata[i] < b {
+            count += 1;
         }
     }
-    MLP { layers }
+    count
 }
 
+/// Histogram of a vector of floats
+/// # Arguments
+/// * `x` - Vector of floats
+/// # Returns
+/// * `Figure` (GNUplot) - Histogram of x
+#[allow(dead_code)]
+pub fn histogram(x: &Vec<f32>) -> Figure {
+    let n = x.len() as u32;
+    let xdata = Array1::from_vec(x.clone());
+    let xmin = xdata.fold(f32::INFINITY, |a, &b| a.min(b));
+    let xmax = xdata.fold(f32::NEG_INFINITY, |a, &b| a.max(b));
+    let nbins = ((n + (1 as u32)) as f32).sqrt() as usize;
+    println!("nbins: {}", nbins);
+    let xt = Array1::linspace(xmin, xmax, nbins).to_vec();
+
+    // get counts in each interval of xt
+    let mut counts = Vec::new();
+    for i in 0..nbins - 1 {
+        counts.push(count_in(xt[i], xt[i + 1], xdata.clone()));
+    }
+    let mut fg = Figure::new();
+    fg.axes2d().boxes(xt.to_vec(), &counts, &[]);
+    // print counts
+    println!("counts: {:?}", counts);
+    fg
+}
+
+// implement adam optimizer arxiv:1412.6980
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct Adam {
@@ -855,14 +524,42 @@ pub struct Adam {
     pub beta1: f32,
     pub beta2: f32,
     pub epsilon: f32,
-    pub m: MLP,
-    pub v: MLP,
+    pub m: MLPGradient,
+    pub v: MLPGradient,
     pub t: i32,
 }
 
-pub fn adamw_init(grads: &MLP, lr: f32, lambda: f32, beta1: f32, beta2: f32) -> Adam {
-    let m = fmap(grads.clone(), &|_| 0.0 as f32);
-    let v = fmap(grads.clone(), &|_| 0.0 as f32);
+pub fn fmap(mlp: MLPGradient, f: fn(f32) -> f32) -> MLPGradient {
+    let mut layers = Vec::new();
+    for layer in &mlp.layers {
+        let weights = &layer.weights.mapv(f);
+        let bias = &layer.bias.mapv(f);
+        let gradient = DenseGradient {
+            weights: weights.clone(),
+            bias: bias.clone(),
+        };
+        layers.push(gradient);
+    }
+    MLPGradient { layers }
+}
+
+pub fn fmulti(mlp: MLPGradient, a: f32) -> MLPGradient {
+    let mut layers = Vec::new();
+    for layer in &mlp.layers {
+        let weights = &layer.weights * a;
+        let bias = &layer.bias * a;
+        let gradient = DenseGradient {
+            weights: weights,
+            bias: bias,
+        };
+        layers.push(gradient);
+    }
+    MLPGradient { layers }
+}
+
+pub fn adamw_init(grads: MLPGradient, lr: f32, lambda: f32, beta1: f32, beta2: f32) -> Adam {
+    let m = fmap(grads.clone(), |_| 0.0 as f32);
+    let v = fmap(grads.clone(), |_| 0.0 as f32);
     Adam {
         lr,
         lambda,
@@ -875,54 +572,192 @@ pub fn adamw_init(grads: &MLP, lr: f32, lambda: f32, beta1: f32, beta2: f32) -> 
     }
 }
 
-#[inline]
-pub fn adamw(mlp: MLP, grads: MLP, adam: &mut Adam) -> MLP {
+pub fn adam(mlp: MLP, grads: MLPGradient, mut adam: &mut Adam) -> MLP {
     adam.t = adam.t + 1;
-    let lr = adam.lr;
-    let lambda = adam.lambda;
+    let t = adam.t;
+
+    let b: f32 = adam.beta1;
+    let b2: f32 = adam.beta2;
+    let b11: f32 = 1.0 - b;
+    let b22: f32 = 1.0 - b2;
+    let mut layers = Vec::new();
+    for ll in 0..mlp.layers.len() {
+        // there must be a better way to do this
+        let mw = b * (&adam.m.layers[ll].weights) + b11 * (&grads.layers[ll].weights);
+        let mb = b * (&adam.m.layers[ll].bias) + b11 * (&grads.layers[ll].bias);
+        let vw =
+            b2 * (&adam.v.layers[ll].weights) + b22 * (&grads.layers[ll].weights.mapv(|x| x * x));
+        let vb = b2 * (&adam.v.layers[ll].bias) + b22 * (&grads.layers[ll].bias.mapv(|x| x * x));
+        let mhatb = mb.mapv(|x| x / (1.0 - b.powi(t)));
+        let mhatw = mw.mapv(|x| x / (1.0 - b.powi(t)));
+        let vhatb = vb.mapv(|x| x / (1.0 - b2.powi(t)));
+        let vhatw = vw.mapv(|x| x / (1.0 - b2.powi(t)));
+        let vhatb = vhatb.mapv(|x| x.sqrt());
+        let vhatw = vhatw.mapv(|x| x.sqrt());
+        let w = &mlp.layers[ll].weights - adam.lr * &mhatw / (&vhatw + adam.epsilon);
+        let b = &mlp.layers[ll].bias - adam.lr * &mhatb / (&vhatb + adam.epsilon);
+
+        let layer = Dense {
+            weights: w,
+            bias: b,
+            activation: mlp.layers[ll].activation,
+            activation_prime: mlp.layers[ll].activation_prime,
+        };
+        adam.m.layers[ll].weights = mw;
+        adam.m.layers[ll].bias = mb;
+        adam.v.layers[ll].weights = vw;
+        adam.v.layers[ll].bias = vb;
+        layers.push(layer);
+    }
+    MLP { layers }
+}
+
+pub fn adamw(mlp: MLP, grads: MLPGradient, mut adam: &mut Adam) -> MLP {
+    adam.t = adam.t + 1;
     let t = adam.t;
     let b: f32 = adam.beta1;
     let b2: f32 = adam.beta2;
     let b11: f32 = 1.0 - b;
     let b22: f32 = 1.0 - b2;
-    let m = adam.m.clone() * b + grads.clone() * b11;
-    let v = adam.v.clone() * b2 + fmap(grads, &(|x| x * x)) * b22;
-    let mhat = fmap(m.clone(), &(|x| x / (1.0f32 - b.powi(t))));
-    let vhat = fmap(v.clone(), &(|x| (x / (1.0f32 - b2.powi(t))).sqrt()));
-    adam.m = m.clone();
-    adam.v = v.clone();
-    return mlp.clone().add_mlp(mhat * (-lr) / (vhat + adam.epsilon)) + mlp * (-lambda);
+    let mut layers = Vec::new();
+    for ll in 0..mlp.layers.len() {
+        // there must be a better way to do this
+        let mw = b * (&adam.m.layers[ll].weights) + b11 * (&grads.layers[ll].weights);
+        let mb = b * (&adam.m.layers[ll].bias) + b11 * (&grads.layers[ll].bias);
+        let vw =
+            b2 * (&adam.v.layers[ll].weights) + b22 * (&grads.layers[ll].weights.mapv(|x| x * x));
+        let vb = b2 * (&adam.v.layers[ll].bias) + b22 * (&grads.layers[ll].bias.mapv(|x| x * x));
+        let mhatb = mb.mapv(|x| x / (1.0 - b.powi(t)));
+        let mhatw = mw.mapv(|x| x / (1.0 - b.powi(t)));
+        let vhatb = vb.mapv(|x| (x / (1.0 - b2.powi(t))).sqrt());
+        let vhatw = vw.mapv(|x| (x / (1.0 - b2.powi(t))).sqrt());
+        let w = &mlp.layers[ll].weights
+            - adam.lr * &mhatw / (&vhatw + adam.epsilon)
+            - adam.lambda * &mlp.layers[ll].weights;
+        let b = &mlp.layers[ll].bias
+            - adam.lr * &mhatb / (&vhatb + adam.epsilon)
+            - adam.lambda * &mlp.layers[ll].bias;
+
+        let layer = Dense {
+            weights: w,
+            bias: b,
+            activation: mlp.layers[ll].activation,
+            activation_prime: mlp.layers[ll].activation_prime,
+        };
+        adam.m.layers[ll].weights = mw;
+        adam.m.layers[ll].bias = mb;
+        adam.v.layers[ll].weights = vw;
+        adam.v.layers[ll].bias = vb;
+        layers.push(layer);
+    }
+    MLP { layers }
 }
 
-pub fn train_mlp(
-    mlp: &MLP,
-    x: &Array2<f32>,
-    y: &Array2<f32>,
-    lr: f32,
-    wd: f32,
-    epochs: usize,
-    loss: fn(&Array2<f32>, &Array2<f32>) -> f32,
-    loss_prime: fn(&Array2<f32>, &Array2<f32>) -> Array2<f32>,
-    parallel: bool,
-) -> MLP {
-    let mut mlp = mlp.clone();
-    let now = std::time::Instant::now();
-    let (_lol, gradients) = mlp.backprop(x, y, loss_prime);
-    let mut opt = adamw_init(&gradients, lr, wd, 0.9, 0.999);
-    for i in 0..epochs {
-        // let (_lol, gradients) = mlp.backprop(x, y, loss_prime);
-        // let gradients = mlp.parallel_backprop(x, y, loss_prime, 32);
-        // mlp = sgd(&mlp, &gradients, lr);
-        let gradients = if parallel {
-            mlp.parallel_backprop(x, y, loss_prime, 32)
-        } else {
-            mlp.backprop(x, y, loss_prime).1
-        };
-        mlp = adamw(mlp, gradients, &mut opt);
-        if i % 1500 == 0 {
-            println!("Epoch {} ||loss: {}", i, loss(&mlp.forward(x), y));
-        }
-    }
-    println!("Training took {:?} seconds", now.elapsed());
-    mlp
+#[derive(Serialize, Deserialize, Debug)]
+pub struct MlpJason {
+    pub layer_1_weights: Vec<f32>,
+    pub layer_1_weight_size: Vec<usize>,
+    pub layer_1_bias: Vec<f32>,
+    pub layer_1_bias_size: Vec<usize>,
+    pub layer_1_activation: String,
+    pub layer_1_activation_prime: String,
+    pub layer_2_weights: Vec<f32>,
+    pub layer_2_weight_size: Vec<usize>,
+    pub layer_2_bias: Vec<f32>,
+    pub layer_2_bias_size: Vec<usize>,
+    pub layer_2_activation: String,
+    pub layer_2_activation_prime: String,
+    pub layer_3_weights: Vec<f32>,
+    pub layer_3_weight_size: Vec<usize>,
+    pub layer_3_bias: Vec<f32>,
+    pub layer_3_bias_size: Vec<usize>,
+    pub layer_3_activation: String,
+    pub layer_3_activation_prime: String,
+}
+
+pub fn mlpjason2mlp(mlpj: MlpJason) -> MLP {
+    let activation = match mlpj.layer_1_activation.as_str() {
+        "relu" => relu,
+        "gelu" => gelu,
+        "leaky_relu" => leaky_relu,
+        "swish" => swish,
+        "none_activation" => none_activation,
+        &_ => none_activation,
+    };
+    let activation_prime = match mlpj.layer_1_activation_prime.as_str() {
+        "relu_prime" => relu_prime,
+        "gelu_prime" => gelu_prime,
+        "leaky_relu_prime" => leaky_relu_prime,
+        "swish_prime" => swish_prime,
+        "none_activation_prime" => none_activation_prime,
+        &_ => none_activation_prime,
+    };
+    let l1w = Array2::from_shape_vec(
+        //(mlpj.layer_1_weight_size[0], mlpj.layer_1_weight_size[1]),
+        (mlpj.layer_1_weight_size[1], mlpj.layer_1_weight_size[0]),
+        mlpj.layer_1_weights,
+    )
+    .unwrap()
+    //.t()
+    .to_owned();
+    let l1b = Array2::from_shape_vec(
+        //(mlpj.layer_1_bias_size[0], mlpj.layer_1_bias_size[1]),
+        (mlpj.layer_1_bias_size[1], mlpj.layer_1_bias_size[0]),
+        mlpj.layer_1_bias,
+    )
+    .unwrap()
+    //.t()
+    .to_owned();
+    let l2w = Array2::from_shape_vec(
+        // (mlpj.layer_2_weight_size[0], mlpj.layer_2_weight_size[1]),
+        (mlpj.layer_2_weight_size[1], mlpj.layer_2_weight_size[0]),
+        mlpj.layer_2_weights,
+    )
+    .unwrap()
+    //.t()
+    .to_owned();
+    let l2b = Array2::from_shape_vec(
+        //(mlpj.layer_2_bias_size[0], mlpj.layer_2_bias_size[1]),
+        (mlpj.layer_2_bias_size[1], mlpj.layer_2_bias_size[0]),
+        mlpj.layer_2_bias,
+    )
+    .unwrap()
+    //.t()
+    .to_owned();
+    let l3w = Array2::from_shape_vec(
+        //(mlpj.layer_3_weight_size[0], mlpj.layer_3_weight_size[1]),
+        (mlpj.layer_3_weight_size[1], mlpj.layer_3_weight_size[0]),
+        mlpj.layer_3_weights,
+    )
+    .unwrap()
+    //.t()
+    .to_owned();
+    let l3b = Array2::from_shape_vec(
+        //(mlpj.layer_3_bias_size[0], mlpj.layer_3_bias_size[1]),
+        (mlpj.layer_3_bias_size[1], mlpj.layer_3_bias_size[0]),
+        mlpj.layer_3_bias,
+    )
+    .unwrap()
+    //.t()
+    .to_owned();
+    let mut layers = Vec::new();
+    layers.push(Dense {
+        weights: l1w,
+        bias: l1b,
+        activation,
+        activation_prime,
+    });
+    layers.push(Dense {
+        weights: l2w,
+        bias: l2b,
+        activation,
+        activation_prime,
+    });
+    layers.push(Dense {
+        weights: l3w,
+        bias: l3b,
+        activation: none_activation,
+        activation_prime: none_activation_prime,
+    });
+    MLP { layers }
 }
