@@ -551,7 +551,7 @@ impl core::ops::Add for MLP {
             .layers
             .iter()
             .zip(other.layers.iter())
-            .map(|(x, y)| x.clone().add_layer(y.clone()))
+            .map(|(x, y)| x.to_owned().add_layer(y.to_owned()))
             .collect();
         MLP { layers }
     }
@@ -893,7 +893,7 @@ pub fn adamw(mlp: MLP, grads: MLP, adam: &mut Adam) -> MLP {
     adam.v = v.clone();
     return mlp
         .clone()
-        .add_mlp((mhat * (-lr)).div_layer(vhat + adam.epsilon) + mlp * (-lambda));
+        .add_mlp((mhat * (-lr)) / (vhat + adam.epsilon) + mlp * (-lambda));
 }
 
 pub fn train_mlp(

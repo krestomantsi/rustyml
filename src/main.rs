@@ -8,8 +8,8 @@ use ndarray_rand::RandomExt;
 use rayon::prelude::*;
 
 // include utils.rs file
-mod utils;
-use utils::{create_mlp, mse, mse_prime, swish, swish_prime, train_mlp};
+mod utils_1;
+use utils_1::{create_mlp, mse, mse_prime, swish, swish_prime, train_mlp};
 
 fn main() {
     let latent_size = 32;
