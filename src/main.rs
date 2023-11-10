@@ -45,17 +45,17 @@ fn main() {
     // let kek = grads.clone() * 0.5;
     let g1 = Array2::ones((32, 32));
     let g2 = 2.0 * g1.clone();
-    let mut dump = Array2::zeros((32, 32));
+    let mut dump = Array2::<f64>::zeros((32, 32));
     let now = std::time::Instant::now();
     let n = 10;
-    for ii in 0..n {
-        Zip::from(&mut dump)
-            .and(&g1)
-            .and(&g2)
-            .for_each(|w, &x, &y| {
-                *w += x / y;
-            })
-    }
+    Zip::from(&mut dump)
+        .and(&g1)
+        .and(&g2)
+        .for_each(|w, &x, &y| {
+            *w += x / y;
+        });
+    // for ii in 0..n {
+    // }
     // let w = g1.clone()/g2.clone()
     println!("Time elapsed {:?}", now.elapsed() / n);
 
