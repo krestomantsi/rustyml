@@ -319,7 +319,8 @@ trait AddMLP {
 // implement add layer for references of two Layers
 impl AddLayer for Layer {
     fn add_layer(self, other: Layer) -> Layer {
-        match (self, other) {
+        // remove this clone below after printing done
+        match (self.clone(), other.clone()) {
             (
                 Layer::Normalisation { eps, mean, std },
                 Layer::Normalisation {
@@ -421,8 +422,8 @@ impl AddLayer for Layer {
                 };
             }
             _ => {
-                // println!("{:?}", self);
-                // println!("{:?}", other);
+                println!("{:?}", self.clone());
+                println!("{:?}", other.clone());
                 panic!("Cannot add layers")
             }
         }
@@ -615,10 +616,13 @@ impl Layer {
                 activation_prime,
             } => {
                 let dz = pullback * (activation_prime)(output);
-                let bias = dz.clone().sum_axis(Axis(0)).insert_axis(Axis(0));
-                let weights = input.t().dot(&dz);
+                let bias0 = dz.clone().sum_axis(Axis(0)).insert_axis(Axis(0));
+                let weights0 = input.t().dot(&dz);
                 let pullback = dz.dot(&weights.t());
-                let gradient = Layer::DenseGradient { weights, bias };
+                let gradient = Layer::DenseGradient {
+                    weights: weights0,
+                    bias: bias0,
+                };
                 (pullback, gradient)
             }
             Layer::DensenoBias {
@@ -784,7 +788,6 @@ impl MLP {
 pub fn create_mlp_det(
     input_size: usize,
     latent_size: usize,
-    latent_size2: usize,
     output_size: usize,
     activation: fn(&Array2<f32>) -> Array2<f32>,
     activation_prime: fn(&Array2<f32>) -> Array2<f32>,
@@ -792,9 +795,9 @@ pub fn create_mlp_det(
     let mut layers = Vec::new();
     let weights1 = Array2::<f32>::ones((input_size, latent_size));
     let bias1 = Array2::zeros((1, latent_size));
-    let weights2 = Array2::<f32>::ones((latent_size, latent_size2));
-    let bias2 = Array2::zeros((1, latent_size2));
-    let weights3 = Array2::<f32>::ones((latent_size2, output_size));
+    let weights2 = Array2::<f32>::ones((latent_size, latent_size));
+    let bias2 = Array2::zeros((1, latent_size));
+    let weights3 = Array2::<f32>::ones((latent_size, output_size));
     let bias3 = Array2::zeros((1, output_size));
 
     layers.push(Layer::Dense {
@@ -891,9 +894,8 @@ pub fn adamw(mlp: MLP, grads: MLP, adam: &mut Adam) -> MLP {
     let vhat = fmap(v.clone(), &(|x| (x / (1.0f32 - b2.powi(t))).sqrt()));
     adam.m = m.clone();
     adam.v = v.clone();
-    return mlp
-        .clone()
-        .add_mlp((mhat * (-lr)) / (vhat + adam.epsilon) + mlp * (-lambda));
+    let lhs = mlp.to_owned() * (-lambda) + (mhat / (vhat + adam.epsilon)).to_owned() * (-lr);
+    return mlp.to_owned().add_mlp(lhs);
 }
 
 pub fn train_mlp(

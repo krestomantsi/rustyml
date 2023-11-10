@@ -9,7 +9,9 @@ use rayon::prelude::*;
 
 // include utils.rs file
 mod utils_1;
-use utils_1::{create_mlp, mse, mse_prime, swish, swish_prime, train_mlp};
+use utils_1::{
+    adamw, adamw_init, create_mlp, create_mlp_det, mse, mse_prime, swish, swish_prime, train_mlp,
+};
 
 fn main() {
     let latent_size = 32;
@@ -18,7 +20,7 @@ fn main() {
     let n = 100;
     let epochs = 30_000;
     let lr = 0.01f32;
-    let wd = 0.00001f32;
+    let wd = 0.0000f32;
 
     println!("YO mama");
     // test backward
@@ -31,14 +33,14 @@ fn main() {
     // let y0 = x0.mapv(|xi| xi * xi * xi);
 
     let mut mlp = create_mlp(1, latent_size, 1, activation, activation_prime);
-    // println!("{:?}", mlp);
+    println!("{:?}", mlp.clone());
     let (_lol, grads) = mlp.backprop(&x0, &y0, mse_prime);
+    println!("{:?}", grads.clone());
 
     // let mut adam = adamw_init(&grads, lr, wd, 0.9, 0.999);
     // let mlp = adamw(mlp, grads, &mut adam);
     // println!("{:?}", mlp);
-
-    // println!("{:?}", mlp + gradients * 0.5);
+    // println!("{:?}", mlp + (grads * 0.5));
 
     let mlp = train_mlp(&mut mlp, &x0, &y0, lr, wd, epochs, mse, mse_prime, false);
 

@@ -420,7 +420,7 @@ pub fn train_mlp(
     let mut mlp = mlp.clone();
     let now = std::time::Instant::now();
     let (_lol, gradients) = mlp.backprop(x, y, loss_prime);
-    let mut opt = adamw_init(gradients, lr, wd, 0.9, 0.999);
+    let mut opt = adamw_init(&gradients, lr, wd, 0.9, 0.999);
     for i in 0..epochs {
         // let (_lol, gradients) = mlp.backprop(x, y, loss_prime);
         // let gradients = mlp.parallel_backprop(x, y, loss_prime, 32);
@@ -443,7 +443,6 @@ pub fn train_mlp(
 pub fn create_mlp_det(
     input_size: usize,
     latent_size: usize,
-    latent_size2: usize,
     output_size: usize,
     activation: fn(&Array2<f32>) -> Array2<f32>,
     activation_prime: fn(&Array2<f32>) -> Array2<f32>,
@@ -451,9 +450,9 @@ pub fn create_mlp_det(
     let mut layers = Vec::new();
     let weights1 = Array2::<f32>::ones((input_size, latent_size));
     let bias1 = Array2::zeros((1, latent_size));
-    let weights2 = Array2::<f32>::ones((latent_size, latent_size2));
-    let bias2 = Array2::zeros((1, latent_size2));
-    let weights3 = Array2::<f32>::ones((latent_size2, output_size));
+    let weights2 = Array2::<f32>::ones((latent_size, latent_size));
+    let bias2 = Array2::zeros((1, latent_size));
+    let weights3 = Array2::<f32>::ones((latent_size, output_size));
     let bias3 = Array2::zeros((1, output_size));
 
     layers.push(Dense {
@@ -557,7 +556,7 @@ pub fn fmulti(mlp: MLPGradient, a: f32) -> MLPGradient {
     MLPGradient { layers }
 }
 
-pub fn adamw_init(grads: MLPGradient, lr: f32, lambda: f32, beta1: f32, beta2: f32) -> Adam {
+pub fn adamw_init(grads: &MLPGradient, lr: f32, lambda: f32, beta1: f32, beta2: f32) -> Adam {
     let m = fmap(grads.clone(), |_| 0.0 as f32);
     let v = fmap(grads.clone(), |_| 0.0 as f32);
     Adam {
