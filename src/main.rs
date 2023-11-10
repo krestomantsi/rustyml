@@ -2,6 +2,7 @@ use std::process::Output;
 
 // lets create a MLP (Multi Layer Perceptron) to do simple regression
 use gnuplot::{AxesCommon, Caption, Color, DotDotDash, Figure, LineStyle};
+use ndarray::Zip;
 use ndarray::{parallel, prelude::*};
 use ndarray_rand::rand_distr::{Distribution, Normal, Uniform};
 use ndarray_rand::RandomExt;
@@ -10,7 +11,8 @@ use rayon::prelude::*;
 // include utils.rs file
 mod utils_1;
 use utils_1::{
-    adamw, adamw_init, create_mlp, create_mlp_det, mse, mse_prime, swish, swish_prime, train_mlp,
+    adamw, adamw_init, create_mlp, create_mlp_det, fmap, mse, mse_prime, swish, swish_prime,
+    train_mlp,
 };
 
 fn main() {
@@ -37,12 +39,27 @@ fn main() {
     let (_lol, grads) = mlp.backprop(&x0, &y0, mse_prime);
     println!("{:?}", grads.clone());
 
-    // let mut adam = adamw_init(&grads, lr, wd, 0.9, 0.999);
+    let mut adam = adamw_init(&grads, lr, wd, 0.9, 0.999);
     // let mlp = adamw(mlp, grads, &mut adam);
     // println!("{:?}", mlp);
-    // println!("{:?}", mlp + (grads * 0.5));
+    // let kek = grads.clone() * 0.5;
+    let g1 = Array2::ones((32, 32));
+    let g2 = 2.0 * g1.clone();
+    let mut dump = Array2::zeros((32, 32));
+    let now = std::time::Instant::now();
+    let n = 10;
+    for ii in 0..n {
+        Zip::from(&mut dump)
+            .and(&g1)
+            .and(&g2)
+            .for_each(|w, &x, &y| {
+                *w += x / y;
+            })
+    }
+    // let w = g1.clone()/g2.clone()
+    println!("Time elapsed {:?}", now.elapsed() / n);
 
-    let mlp = train_mlp(&mut mlp, &x0, &y0, lr, wd, epochs, mse, mse_prime, false);
+    // let mlp = train_mlp(&mut mlp, &x0, &y0, lr, wd, epochs, mse, mse_prime, false);
 
     // let now = std::time::Instant::now();
     // let n2 = 1000;

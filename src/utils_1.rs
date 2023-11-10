@@ -752,7 +752,7 @@ impl MLP {
             .map(|(xx, yy)| self.backprop(&xx.to_owned(), &yy.to_owned(), loss_prime).1)
             .collect();
         // take the mean
-        let mut gradssum = fmap(vecgrads[0].clone(), &|_| 0.0 as f32);
+        let mut gradssum = fmap(&vecgrads[0], &|_| 0.0 as f32);
         let n = vecgrads.len();
         let n_over: f32 = 1.0 / (n as f32);
         for grads in vecgrads {
@@ -822,26 +822,24 @@ pub fn create_mlp_det(
 }
 
 #[inline]
-pub fn fmap(mlp: MLP, f: &impl Fn(f32) -> f32) -> MLP {
+pub fn fmap(mlp: &MLP, f: &impl Fn(f32) -> f32) -> MLP {
     let mut layers = Vec::new();
     for layer in &mlp.layers {
         match layer {
             Layer::NormalisationGradient {} => layers.push(Layer::NormalisationGradient),
             Layer::LayernormGradient {} => layers.push(Layer::LayernormGradient),
             Layer::DenseGradient { weights, bias } => {
-                let weights = &weights.mapv(f);
-                let bias = &bias.mapv(f);
+                let weights = weights.mapv(f);
+                let bias = bias.mapv(f);
                 let gradient = Layer::DenseGradient {
-                    weights: weights.clone(),
-                    bias: bias.clone(),
+                    weights: weights,
+                    bias: bias,
                 };
                 layers.push(gradient);
             }
             Layer::DensenoBiasGradient { weights } => {
-                let weights = &weights.mapv(f);
-                let gradient = Layer::DensenoBiasGradient {
-                    weights: weights.clone(),
-                };
+                let weights = weights.mapv(f);
+                let gradient = Layer::DensenoBiasGradient { weights: weights };
                 layers.push(gradient);
             }
             _ => panic!("panic in fmap"),
@@ -849,6 +847,9 @@ pub fn fmap(mlp: MLP, f: &impl Fn(f32) -> f32) -> MLP {
     }
     MLP { layers }
 }
+
+// #[inline]
+// pub fn ffmap(mlp1,)
 
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
@@ -864,8 +865,8 @@ pub struct Adam {
 }
 
 pub fn adamw_init(grads: &MLP, lr: f32, lambda: f32, beta1: f32, beta2: f32) -> Adam {
-    let m = fmap(grads.clone(), &|_| 0.0 as f32);
-    let v = fmap(grads.clone(), &|_| 0.0 as f32);
+    let m = fmap(grads, &|_| 0.0 as f32);
+    let v = fmap(grads, &|_| 0.0 as f32);
     Adam {
         lr,
         lambda,
@@ -889,9 +890,9 @@ pub fn adamw(mlp: MLP, grads: MLP, adam: &mut Adam) -> MLP {
     let b11: f32 = 1.0 - b;
     let b22: f32 = 1.0 - b2;
     let m = adam.m.clone() * b + grads.clone() * b11;
-    let v = adam.v.clone() * b2 + fmap(grads, &(|x| x * x)) * b22;
-    let mhat = fmap(m.clone(), &(|x| x / (1.0f32 - b.powi(t))));
-    let vhat = fmap(v.clone(), &(|x| (x / (1.0f32 - b2.powi(t))).sqrt()));
+    let v = adam.v.clone() * b2 + fmap(&grads, &(|x| x * x)) * b22;
+    let mhat = fmap(&m, &(|x| x / (1.0f32 - b.powi(t))));
+    let vhat = fmap(&v, &(|x| (x / (1.0f32 - b2.powi(t))).sqrt()));
     adam.m = m.clone();
     adam.v = v.clone();
     let lhs = mlp.to_owned() * (-lambda) + (mhat / (vhat + adam.epsilon)).to_owned() * (-lr);
