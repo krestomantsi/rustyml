@@ -34,7 +34,7 @@ fn main() {
     let y0 = x0.mapv(|xi| (4.0f32 * pi * xi).sin());
     // let y0 = x0.mapv(|xi| xi * xi * xi);
 
-    let mut mlp = create_mlp(1, latent_size, 1, activation, activation_prime);
+    let mut mlp = create_mlp_det(1, latent_size, 1, activation, activation_prime);
     println!("{:?}", mlp.clone());
     let (_lol, grads) = mlp.backprop(&x0, &y0, mse_prime);
     println!("{:?}", grads.clone());
