@@ -847,6 +847,7 @@ pub fn fmap(mlp: &MLP, f: &impl Fn(f32) -> f32) -> MLP {
     }
     MLP { layers }
 }
+
 #[inline]
 pub fn ffmap(mlp0: &mut MLP,mlp1:&MLP,mlp2:&MLP,f:&impl Fn(f32,f32)->f32)
 {
