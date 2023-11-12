@@ -4,6 +4,7 @@ use gnuplot::{Caption, Color, Figure};
 use itertools::izip;
 use ndarray::parallel::prelude::*;
 use ndarray::prelude::*;
+use ndarray::Zip;
 use ndarray_rand::rand_distr::{Distribution, Normal, Uniform};
 use ndarray_rand::RandomExt;
 use serde::{Deserialize, Serialize};
@@ -848,13 +849,54 @@ pub fn fmap(mlp: &MLP, f: &impl Fn(f32) -> f32) -> MLP {
     MLP { layers }
 }
 
-#[inline]
-pub fn ffmap(mlp0: &mut MLP, mlp1: &MLP, mlp2: &MLP, f: &impl Fn(f32, f32) -> f32) {
-    for layer in (&mlp1.layers.zip(&mlp2.layers())) {
-        match (layer1, layer2) {}
-    }
-    MLP { layers }
-}
+// #[inline]
+// pub fn ffmap(mlp0: &mut MLP, mlp1: &MLP, mlp2: &MLP, f: &impl Fn(f32, f32) -> f32) {
+//     for (ii, (layer1, layer2)) in (mlp1.layers.iter().zip(mlp2.layers.iter())).enumerate() {
+//         match (layer1, layer2) {
+//             (Layer::NormalisationGradient {}, Layer::NormalisationGradient {}) => {
+//                 mlp0.layers[ii] = Layer::NormalisationGradient;
+//             }
+//             (Layer::LayernormGradient {}, Layer::LayernormGradient {}) => {
+//                 mlp0.layers[ii] = Layer::LayernormGradient;
+//             }
+//             (
+//                 Layer::DenseGradient {
+//                     weights: weights,
+//                     bias: bias,
+//                 },
+//                 Layer::DenseGradient {
+//                     weights: weights2,
+//                     bias: bias2,
+//                 },
+//             ) => {
+//                 Zip::from(&mut mlp0.layers[ii].weights)
+//                     .and(&weights)
+//                     .and(&weights2)
+//                     .for_each(|w, &x, &y| {
+//                         *w += f(x, y);
+//                     });
+//                 Zip::from(&mut mlp0.layers[ii].bias)
+//                     .and(&bias)
+//                     .and(&bias2)
+//                     .for_each(|w, &x, &y| {
+//                         *w += f(x, y);
+//                     });
+//             }
+//             (
+//                 Layer::DensenoBiasGradient { weights: weights },
+//                 Layer::DensenoBiasGradient { weights: weights2 },
+//             ) => {
+//                 Zip::from(&mut mlp0.layers[ii].weights)
+//                     .and(&weights)
+//                     .and(&weights2)
+//                     .for_each(|w, &x, &y| {
+//                         *w += f(x, y);
+//                     });
+//             }
+//             _ => panic!("Panic in ffmap"),
+//         }
+//     }
+// }
 
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
@@ -895,8 +937,9 @@ pub fn adamw(mlp: MLP, grads: MLP, adam: &mut Adam) -> MLP {
     let b11: f32 = 1.0 - b;
     let b22: f32 = 1.0 - b2;
     // let m = adam.m.clone() * b + grads.clone() * b11;
-    let m = fmap(&adam.m, &|x| x * b);
-    let v = adam.v.clone() * b2 + fmap(&grads, &(|x| x * x)) * b22;
+    let m = fmap(&adam.m, &|x| x * b) + fmap(&grads, &|x| x * b11);
+    // let v = adam.v.clone() * b2 + fmap(&grads, &(|x| x * x)) * b22;
+    let v = fmap(&adam.v, &|x| x * b2) + fmap(&grads, &|x| x * x * b22);
     let mhat = fmap(&m, &(|x| x / (1.0f32 - b.powi(t))));
     let vhat = fmap(&v, &(|x| (x / (1.0f32 - b2.powi(t))).sqrt()));
     adam.m = m.clone();
