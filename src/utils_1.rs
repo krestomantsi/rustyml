@@ -849,7 +849,7 @@ pub fn fmap(mlp: &MLP, f: &impl Fn(f32) -> f32) -> MLP {
 }
 
 // #[inline]
-// pub fn ffmap(mlp1,)
+pub fn ffmap(mlp,)
 
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
