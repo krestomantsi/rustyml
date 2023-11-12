@@ -307,21 +307,21 @@ impl core::ops::Add<f32> for Layer {
 }
 
 trait AddLayer {
-    fn add_layer(self, other: Layer) -> Layer;
+    fn add_layer(self, other: &Layer) -> Layer;
 }
 trait DivLayer {
     fn div_layer(self, other: Layer) -> Layer;
 }
 
 trait AddMLP {
-    fn add_mlp(self, other: MLP) -> MLP;
+    fn add_mlp(self, other: &MLP) -> MLP;
 }
 
 // implement add layer for references of two Layers
 impl AddLayer for Layer {
-    fn add_layer(self, other: Layer) -> Layer {
+    fn add_layer(self, other: &Layer) -> Layer {
         // remove this clone below after printing done
-        match (self.clone(), other.clone()) {
+        match (self, other) {
             (
                 Layer::Normalisation { eps, mean, std },
                 Layer::Normalisation {
@@ -553,19 +553,19 @@ impl core::ops::Add for MLP {
             .layers
             .iter()
             .zip(other.layers.iter())
-            .map(|(x, y)| x.to_owned().add_layer(y.to_owned()))
+            .map(|(x, y)| x.to_owned().add_layer(y))
             .collect();
         MLP { layers }
     }
 }
 
 impl AddMLP for MLP {
-    fn add_mlp(self, other: MLP) -> MLP {
+    fn add_mlp(self, other: &MLP) -> MLP {
         let layers = self
             .layers
             .iter()
             .zip(other.layers.iter())
-            .map(|(x, y)| x.to_owned().add_layer(y.to_owned()))
+            .map(|(x, y)| x.to_owned().add_layer(y))
             .collect();
         MLP { layers }
     }
@@ -942,10 +942,10 @@ pub fn adamw(mlp: MLP, grads: MLP, adam: &mut Adam) -> MLP {
     let v = fmap(&adam.v, &|x| x * b2) + fmap(&grads, &|x| x * x * b22);
     let mhat = fmap(&m, &(|x| x / (1.0f32 - b.powi(t))));
     let vhat = fmap(&v, &(|x| (x / (1.0f32 - b2.powi(t))).sqrt()));
-    adam.m = m.clone();
-    adam.v = v.clone();
+    adam.m = m;
+    adam.v = v;
     let lhs = mlp.to_owned() * (-lambda) + (mhat / (vhat + adam.epsilon)).to_owned() * (-lr);
-    return mlp.to_owned().add_mlp(lhs);
+    return mlp.to_owned().add_mlp(&lhs);
 }
 
 pub fn train_mlp(
