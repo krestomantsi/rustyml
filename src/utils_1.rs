@@ -848,6 +848,13 @@ pub fn fmap(mlp: &MLP, f: &impl Fn(f32) -> f32) -> MLP {
     MLP { layers }
 }
 
+#[inline]
+pub fn ffmap(mlp0: &mut MLP,mlp1:&MLP,mlp2:&MLP,f:&impl Fn(f32,f32)->f32)
+{
+
+    
+}
+
 // #[inline]
 pub fn ffmap(mlp,)
 
@@ -889,7 +896,8 @@ pub fn adamw(mlp: MLP, grads: MLP, adam: &mut Adam) -> MLP {
     let b2: f32 = adam.beta2;
     let b11: f32 = 1.0 - b;
     let b22: f32 = 1.0 - b2;
-    let m = adam.m.clone() * b + grads.clone() * b11;
+    // let m = adam.m.clone() * b + grads.clone() * b11;
+    let m = fmap(adam.m,&|x| x*b )
     let v = adam.v.clone() * b2 + fmap(&grads, &(|x| x * x)) * b22;
     let mhat = fmap(&m, &(|x| x / (1.0f32 - b.powi(t))));
     let vhat = fmap(&v, &(|x| (x / (1.0f32 - b2.powi(t))).sqrt()));
