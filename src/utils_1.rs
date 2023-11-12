@@ -849,14 +849,30 @@ pub fn fmap(mlp: &MLP, f: &impl Fn(f32) -> f32) -> MLP {
 }
 
 #[inline]
-pub fn ffmap(mlp0: &mut MLP,mlp1:&MLP,mlp2:&MLP,f:&impl Fn(f32,f32)->f32)
-{
-
-    
+pub fn ffmap(mlp0: &mut MLP, mlp1: &MLP, mlp2: &MLP, f: &impl Fn(f32, f32) -> f32) {
+    for layer in (&mlp1.layers.zip(&mlp2.layers())) {
+        match (layer1, layer2) {
+            Layer::NormalisationGradient {} => layers.push(Layer::NormalisationGradient),
+            Layer::LayernormGradient {} => layers.push(Layer::LayernormGradient),
+            Layer::DenseGradient { weights, bias } => {
+                let weights = weights.mapv(f);
+                let bias = bias.mapv(f);
+                let gradient = Layer::DenseGradient {
+                    weights: weights,
+                    bias: bias,
+                };
+                layers.push(gradient);
+            }
+            Layer::DensenoBiasGradient { weights } => {
+                let weights = weights.mapv(f);
+                let gradient = Layer::DensenoBiasGradient { weights: weights };
+                layers.push(gradient);
+            }
+            _ => panic!("panic in ffmap"),
+        }
+    }
+    MLP { layers }
 }
-
-// #[inline]
-pub fn ffmap(mlp,)
 
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
@@ -897,7 +913,7 @@ pub fn adamw(mlp: MLP, grads: MLP, adam: &mut Adam) -> MLP {
     let b11: f32 = 1.0 - b;
     let b22: f32 = 1.0 - b2;
     // let m = adam.m.clone() * b + grads.clone() * b11;
-    let m = fmap(adam.m,&|x| x*b )
+    let m = fmap(&adam.m, &|x| x * b);
     let v = adam.v.clone() * b2 + fmap(&grads, &(|x| x * x)) * b22;
     let mhat = fmap(&m, &(|x| x / (1.0f32 - b.powi(t))));
     let vhat = fmap(&v, &(|x| (x / (1.0f32 - b2.powi(t))).sqrt()));
