@@ -24,7 +24,6 @@ fn main() {
     let lr = 0.01f32;
     let wd = 0.0000f32;
 
-    println!("YO mama");
     // test backward
     // simple example for y=x^2
     let x0 = Array::linspace(-1.0, 1.0, n)
