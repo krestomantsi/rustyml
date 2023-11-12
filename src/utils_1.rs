@@ -321,7 +321,7 @@ trait AddMLP {
 impl AddLayer for Layer {
     fn add_layer(self, other: &Layer) -> Layer {
         // remove this clone below after printing done
-        match (self, other) {
+        match (self.clone(), &other) {
             (
                 Layer::Normalisation { eps, mean, std },
                 Layer::Normalisation {

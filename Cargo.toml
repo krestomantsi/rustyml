@@ -16,3 +16,7 @@ serde_json = "1.0.105"
 
 [profile.dev]
 opt-level = 1
+
+[profile.release]
+codegen-units = 1
+lto = false
