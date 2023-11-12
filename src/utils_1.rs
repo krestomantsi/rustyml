@@ -851,25 +851,7 @@ pub fn fmap(mlp: &MLP, f: &impl Fn(f32) -> f32) -> MLP {
 #[inline]
 pub fn ffmap(mlp0: &mut MLP, mlp1: &MLP, mlp2: &MLP, f: &impl Fn(f32, f32) -> f32) {
     for layer in (&mlp1.layers.zip(&mlp2.layers())) {
-        match (layer1, layer2) {
-            Layer::NormalisationGradient {} => layers.push(Layer::NormalisationGradient),
-            Layer::LayernormGradient {} => layers.push(Layer::LayernormGradient),
-            Layer::DenseGradient { weights, bias } => {
-                let weights = weights.mapv(f);
-                let bias = bias.mapv(f);
-                let gradient = Layer::DenseGradient {
-                    weights: weights,
-                    bias: bias,
-                };
-                layers.push(gradient);
-            }
-            Layer::DensenoBiasGradient { weights } => {
-                let weights = weights.mapv(f);
-                let gradient = Layer::DensenoBiasGradient { weights: weights };
-                layers.push(gradient);
-            }
-            _ => panic!("panic in ffmap"),
-        }
+        match (layer1, layer2) {}
     }
     MLP { layers }
 }
