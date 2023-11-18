@@ -19,7 +19,7 @@ fn main() {
     let latent_size = 32;
     let activation = swish;
     let activation_prime = swish_prime;
-    let n = 100;
+    let n = 10_000;
     let epochs = 30_000;
     let lr = 0.01f32;
     let wd = 0.0000f32;
@@ -55,7 +55,7 @@ fn main() {
     //     });
     // println!("Time elapsed {:?}", now.elapsed() / n);
 
-    let mlp = train_mlp(&mut mlp, &x0, &y0, lr, wd, epochs, mse, mse_prime, false);
+    let mlp = train_mlp(&mut mlp, &x0, &y0, lr, wd, epochs, mse, mse_prime, true);
 
     // let now = std::time::Instant::now();
     // let n2 = 1000;
